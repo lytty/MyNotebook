@@ -1,0 +1,8 @@
+1. rdesktop -f 10.5.2.25 #远程登录天津本地服务器
+
+2. PIP安装软件包时，国外的源下载速度太慢，浪费时间。而且经常出现下载过程中超时现象。所以把PIP安装源替换成国内镜	像，可以大幅提升下载速度，还可以提高安装成功率， pip install -i https://pypi.tuna.tsinghua.edu.cn/simple [软件包名]
+
+3. python版本切换： 执行下面的命令手动去选择python 版本：
+   sudo update-alternatives --config python
+
+4. pip 安装： sudo apt-get install python3-pip
