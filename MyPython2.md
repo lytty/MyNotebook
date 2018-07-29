@@ -145,5 +145,52 @@
 - 命名空间
     - 为了防止命名冲突，在每一个冲突元素上添加命名空间
     - xmlns
-- json
+## 读取
+- xml读取主要分两个主要技术：SAX, DOM
+- SAX （simple API for XML）:
+    - 基于事件驱动的API
+    - 利用SAX解析文档设计到解析器和事件处理两部分
+    - 特点： 快；流式读取
+- DOM
+    - 是W3C规定的XML编程接口
+    - 一个XML文件在缓存中以树形结构保存，读取
+    - 用途：
+        - 定位浏览XML任何一个节点信息
+        - 添加删除相应内容
+    - minidom
+    - etree
+- xml 文件写入
+    - 更改
+        - ele.set: 修改属性
+        - ele.appent: 添加子元素
+        - ele.remove: 删除元素
+    - 生成创建
+        - SubElement
+        - minidom
+        - etree创建
+# json
+- 在线工具
+- JSON(JavaScriptObiectNotation)
+- 轻量级的数据交换格式，基于ECMAScript
+- json格式是一个键值对形式的数据集
+    - key：字符串
+    - value：字符串，数字，列表，json
+    - json使用大括号包裹
+    - 键值对直接用逗号隔开
+- json和python格式的对应
+    - 字符串：字符串
+    - 数字：数字
+    - 队列：list
+    - 对象：dict
+    - 布尔值：布尔值
+- python for json
+    - json包
+    - json和python对象的转换
+        - json.dumps()：对数据编码，把python格式表示成json格式
+        - json.loads()：对数据解码，把json格式转化成python格式
+    - python读取json文件
+        - json.dump()：把内容写入文件
+        - json.load()：把json文件内容读入python
+
+# 正则表达式(RegularExpression，re)
 - 为了解决不同设备之间信息交换
