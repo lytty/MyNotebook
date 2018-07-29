@@ -82,4 +82,33 @@
     - 调用协程为了得到返回值，协程必须正常终止
     - 生成器正常终止会发出StopIteration异常，异常对象的value属性保存返回值
     - yield from从内部捕获Stop Iteration异常
-    
+
+# asyncio
+- asyncio 本身是一个消息循环
+- 步骤：
+    - 创建消息循环
+    - 把协程导入
+    - 关闭
+
+# async and await
+- 为了更好的表示异步io
+- 让协程代码更简洁
+- 在使用上，可以简单的进行替换
+
+# aiohttp
+- asyncio 实现单线程的并发io，在客户端用处不大
+- 在服务器端可以asyncio+coroutine配合，因为HTTP是io操作
+- asyncio实现了tcp，udp，ssl等协议
+- aiohttp是给与asyncio实现HTTP框架
+
+# concurrent.futures
+- 类似其他语言的线程池概念
+- 利用multiprocessiong实现真正的并行计算
+
+# current中map函数
+- map(fn, \*iterables, timeout=None)
+    - 类似map函数
+    - 函数需要异步执行
+    - map 与submit使用一个就行
+
+# Future
