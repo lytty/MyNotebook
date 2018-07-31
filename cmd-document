@@ -6,3 +6,8 @@
    sudo update-alternatives --config python
 
 4. pip 安装： sudo apt-get install python3-pip
+
+5. smb://10.5.2.210
+
+6. debin,ubuntu删除所有带 rc 标记的dpkg包:
+   dpkg -l | grep ^rc | cut -d' ' -f3 | sudo xargs dpkg --purge
