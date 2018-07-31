@@ -14,6 +14,7 @@
 
 7. 网址收藏：
    Django学习： https://docs.djangoproject.com/zh-hans/2.0/
+   http://mirror.nsc.liu.se/centos-store/6.8/isos/x86_64/CentOS-6.8-x86_64-bin-DVD1.iso
 
 8. Django：
    Python2.7 只能支持django version < 2, Django 2.0+ 需要Python3
