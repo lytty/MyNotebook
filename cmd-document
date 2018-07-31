@@ -11,3 +11,10 @@
 
 6. debin,ubuntu删除所有带 rc 标记的dpkg包:
    dpkg -l | grep ^rc | cut -d' ' -f3 | sudo xargs dpkg --purge
+
+7. 网址收藏：
+   Django学习： https://docs.djangoproject.com/zh-hans/2.0/
+
+8. Django：
+   Python2.7 只能支持django version < 2, Django 2.0+ 需要Python3
+   Python2.7 安装django使用如下命令： sudo pip install  -i https://pypi.tuna.tsinghua.edu.cn/simple "django<2"
