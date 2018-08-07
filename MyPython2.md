@@ -296,3 +296,45 @@
     - File：文件名称， 例如 a.apk
     - 如果想完整精确表示ftp上某一个文件，需要以上三部分组合在一起
 
+# Mail编程
+
+# 网络爬虫
+## urllib
+- 包含模块
+    - urllib.request:打开和读取urls
+    - urllib.error: 包含urllib.request产生的常见的错误，使用try捕获
+    - urllib.parse：包含解析url的方法
+    - urllib.rebotparse: 解析robots.txt文件
+- 网页编码问题解决
+    - chardet：可以自动检测页面文件的编码格式，但是，可能有误
+    - 需要安装
+- urlopen 的返回对象
+    - geturl：返回请求的url
+    - info：请求反馈对象的meta信息
+    - getcode：返回http code
+- request.date 的使用
+    - 访问网络的两种方法
+        - get
+            - 利用参数给服务器传递信息
+            - 参数为dict，然后用parse编码
+        - post
+            - 一般向服务器传递参数使用
+            - post把信息自动加密处理
+            - 我们如果想使用post信息，需要用到data参数
+            - 使用post，意味着Http的请求头可能需要更改
+                - Content-Type：application/x-www.form-urlencode
+                - Content-Length: 数据长度
+                - 简而言之，一旦更改请求方法，请注意其他请求头部信息相适应
+            - urllib.parse.urlencode可以将字符串自动转换成上面的
+            - 为了更多的设置请求信息，单纯的通过urlopen已经不行，需要使用request.Request类
+
+- urllib.error
+    - URLError产生的原因：
+        - 没网
+        - 服务器链接失败
+        - 不知道指定服务器
+        - OSError子类
+    - HTTPError，是URLError的一个子类
+    - 两者区别：
+        - HTTPError是对应的HTTP请求的返回码错误，如果返回错误码是400以上的，则引发HTTPError
+        - URLError对应的一般是网络出现问题，包括url问题
