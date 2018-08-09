@@ -19,3 +19,11 @@
 8. Django：
    Python2.7 只能支持django version < 2, Django 2.0+ 需要Python3
    Python2.7 安装django使用如下命令： sudo pip install  -i https://pypi.tuna.tsinghua.edu.cn/simple "django<2"
+
+9. Anaconda:
+   sudo ./Anaconda3-5.2.0-Linux-x86_64.sh 进行安装， 注意安装位置，默认安装在/root/anaconda3目录，建议修改为home
+   删除时， 直接删除anaconda3目录即可（建议直接将该目录重命名，以免后期想使用时再重新安装）， 另外去除或注销.bashrc中的#export PATH=/***/anaconda3/bin:$PATH
+
+10. apt-get remove --purge xxx # 移除应用及配置
+	apt-get autoremove # 移除没用的包
+   
