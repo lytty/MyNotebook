@@ -29,4 +29,7 @@
 
 11. 解决无法启动VS code和Chrome浏览器问题：
     sudo apt install libnss3=2:3.15.4-1ubuntu7
+
+12. 模拟水平从下往上滑屏操作
+    adb shell input swipe 500 500 500 200 
    

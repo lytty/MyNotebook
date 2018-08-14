@@ -1,0 +1,24 @@
+2018-07-24 10:56:20,888 common logout main 80 DEBUG   : this is debug info
+2018-07-24 10:56:20,888 common logout main 81 INFO    : this is information
+2018-07-24 10:56:20,889 common logout main 82 WARNING : this is warning message
+2018-07-24 10:56:20,889 common logout main 83 ERROR   : this is error message
+2018-07-24 10:56:20,889 common logout main 84 CRITICAL: this is fatal message, it is same as logger.critical
+2018-07-24 10:56:20,889 common logout main 85 CRITICAL: this is critical message
+2018-07-24 10:56:20,889 common logout main 91 ERROR   : this is an exception message
+Traceback (most recent call last):
+  File "/home/local/SPREADTRUM/haibin.xu/eclipse/java-photon/workspace/model/LogOutPut/logout.py", line 88, in main
+    1 / 0
+ZeroDivisionError: integer division or modulo by zero
+2018-07-24 10:56:20,890 common model main 76 INFO    : {'cmd_line_arg': '/home/local/SPREADTRUM/haibin.xu/eclipse/java-photon/workspace/model/GlobalVar/../LogDir/cmd_line_arg.log', 'all': '/home/local/SPREADTRUM/haibin.xu/eclipse/java-photon/workspace/model/GlobalVar/../LogDir/all.log', 'com_model': '/home/local/SPREADTRUM/haibin.xu/eclipse/java-photon/workspace/model/GlobalVar/../LogDir/com_model.log', 'global_var': '/home/local/SPREADTRUM/haibin.xu/eclipse/java-photon/workspace/model/GlobalVar/../LogDir/global_var.log', 'logout': '/home/local/SPREADTRUM/haibin.xu/eclipse/java-photon/workspace/model/GlobalVar/../LogDir/logout.log', 'model': '/home/local/SPREADTRUM/haibin.xu/eclipse/java-photon/workspace/model/GlobalVar/../LogDir/model.log'}
+2018-07-24 12:17:39,709 common logout main 80 DEBUG   : this is debug info
+2018-07-24 12:17:39,709 common logout main 81 INFO    : this is information
+2018-07-24 12:17:39,709 common logout main 82 WARNING : this is warning message
+2018-07-24 12:17:39,709 common logout main 83 ERROR   : this is error message
+2018-07-24 12:17:39,710 common logout main 84 CRITICAL: this is fatal message, it is same as logger.critical
+2018-07-24 12:17:39,710 common logout main 85 CRITICAL: this is critical message
+2018-07-24 12:17:39,710 common logout main 91 ERROR   : this is an exception message
+Traceback (most recent call last):
+  File "/home/local/SPREADTRUM/haibin.xu/eclipse/java-photon/workspace/model/LogOutPut/logout.py", line 88, in main
+    1 / 0
+ZeroDivisionError: integer division or modulo by zero
+2018-07-24 12:17:39,710 common model main 76 INFO    : {'cmd_line_arg': '/home/local/SPREADTRUM/haibin.xu/eclipse/java-photon/workspace/model/GlobalVar/../LogDir/cmd_line_arg.log', 'all': '/home/local/SPREADTRUM/haibin.xu/eclipse/java-photon/workspace/model/GlobalVar/../LogDir/all.log', 'com_model': '/home/local/SPREADTRUM/haibin.xu/eclipse/java-photon/workspace/model/GlobalVar/../LogDir/com_model.log', 'global_var': '/home/local/SPREADTRUM/haibin.xu/eclipse/java-photon/workspace/model/GlobalVar/../LogDir/global_var.log', 'logout': '/home/local/SPREADTRUM/haibin.xu/eclipse/java-photon/workspace/model/GlobalVar/../LogDir/logout.log', 'model': '/home/local/SPREADTRUM/haibin.xu/eclipse/java-photon/workspace/model/GlobalVar/../LogDir/model.log'}
