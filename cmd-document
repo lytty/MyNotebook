@@ -7,7 +7,7 @@
 
 4. pip 安装： sudo apt-get install python3-pip
 
-5. smb://10.5.2.210
+5. smb://10.5.2.210, 10.5.2.52(公司网络登录ip)
 
 6. debin,ubuntu删除所有带 rc 标记的dpkg包:
    dpkg -l | grep ^rc | cut -d' ' -f3 | sudo xargs dpkg --purge
@@ -26,4 +26,16 @@
 
 10. apt-get remove --purge xxx # 移除应用及配置
 	apt-get autoremove # 移除没用的包
-   
+
+11. 解决无法启动VS code和Chrome浏览器问题：
+    sudo apt install libnss3=2:3.15.4-1ubuntu7
+
+12. 模拟水平从下往上滑屏操作
+    adb shell input swipe 500 500 500 200 
+
+13. Android 代码下载
+    repo init -u gitadmin@gitmirror.unisoc.com:android/platform/manifest.git -b sprdroid8.1_trunk
+    repo sync -c --no-tags -d -q
+
+14. 更改文件、文件夹归属
+    sudo chown -R SPREADTRUM\\haibin.xu:SPREADTRUM\\domain^users file/dir

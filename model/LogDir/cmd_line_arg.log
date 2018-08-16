@@ -1,0 +1,6 @@
+2018-07-24 10:56:20,888 cmd_line cmd_line_arg main 48 INFO    : sys.argv = ['cmd_line_arg.py', '--version', 'model']
+2018-07-24 10:56:20,888 cmd_line cmd_line_arg main 50 INFO    : opts = [('--version', 'model')], args = []
+2018-07-24 10:56:20,888 cmd_line cmd_line_arg main 82 INFO    : cmd_line_arg.py version 1.0
+2018-07-24 12:17:39,708 cmd_line cmd_line_arg main 48 INFO    : sys.argv = ['cmd_line_arg.py', '--version', 'model']
+2018-07-24 12:17:39,708 cmd_line cmd_line_arg main 50 INFO    : opts = [('--version', 'model')], args = []
+2018-07-24 12:17:39,708 cmd_line cmd_line_arg main 82 INFO    : cmd_line_arg.py version 1.0
