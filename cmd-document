@@ -32,4 +32,10 @@
 
 12. 模拟水平从下往上滑屏操作
     adb shell input swipe 500 500 500 200 
-   
+
+13. Android 代码下载
+    repo init -u gitadmin@gitmirror.unisoc.com:android/platform/manifest.git -b sprdroid8.1_trunk
+    repo sync -c --no-tags -d -q
+
+14. 更改文件、文件夹归属
+    sudo chown -R SPREADTRUM\\haibin.xu:SPREADTRUM\\domain^users file/dir
