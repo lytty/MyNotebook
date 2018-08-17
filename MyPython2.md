@@ -450,3 +450,29 @@
     - request.get(url)
     - requests.request("get", url)
     - 可以带有headers和parmas参数
+- get返回
+
+- post
+    - rsp = requests.post(url, data=data)
+- proxy
+    - proxied = {
+        "http": address of proxy,
+        "https": address of proxy
+    }
+
+- 用户验证
+    - 代理验证
+
+- web客户端验证
+
+- cookie
+    - requests可以自动处理cookie信息
+
+- session
+    - 跟服务器端session不是一个东东
+    - 模拟一次回话，从客户端浏览器链接服务器开始，到客户端浏览器断开
+    - 能让我们跨请求时保持某些参数，比如在同一个session案例发出的，所有请求之间保持cookie
+
+- https请求ssl证书
+    - 参数verify负责表示是否需要验证ssl证书，默认是True
+    - 如果不需要验证ssl证书，则设置为False表示关闭
