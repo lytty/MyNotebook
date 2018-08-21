@@ -20,6 +20,8 @@
     - 其中，request是django.http.HttpRequest类的一个实例，视图函数的第一个参数必须是request。
     - 一个视图就是Python的一个函数。这个函数第一个参数的类型是HttpRequest；它返回一个HttpResponse实例。为了使一个Python的函数成为一个Django可识别的视图，它必须满足这两个条件。
 
+- 每个视图必须要做的只有两件事：返回一个包含被请求页面内容的 HttpResponse 对象，或者抛出一个异常，比如 Http404 。 
+
 ## URLconf
 - 我们需要通过一个详细描述的URL来显式的告诉项目并且激活这个视图。为了绑定视图函数和URL，我们使用URLconf。
 
@@ -121,6 +123,18 @@
 
 - python manage.py shell
     - 我们使用这个命令而不是简单的使用 "Python" 是因为 manage.py 会设置 DJANGO_SETTINGS_MODULE 环境变量，这个变量会让 Django 根据 mysite/settings.py 文件来设置 Python 包的导入路径。
+
+- 页面的设计若写死在视图函数的代码里，如果你想改变页面的样子，你需要编辑 Python 代码。让我们使用 Django 的模板系统，只要创建一个视图，就可以将页面的设计从代码中分离出来。
+
+- 首先，在你的 polls 目录里创建一个 templates 目录。Django 将会在这个目录里查找模板文件。
+
+- 你项目的 TEMPLATES 配置项描述了 Django 如何载入和渲染模板。默认的设置文件设置了 DjangoTemplates 后端，并将 APP_DIRS 设置成了 True。这一选项将会让 DjangoTemplates 在每个 INSTALLED_APPS 文件夹中寻找 "templates" 子目录。这就是为什么尽管我们没有像在第二部分中那样修改 DIRS 设置，Django 也能正确找到 polls 的模板位置的原因。
+
+- 模板命名空间
+
+    虽然我们现在可以将模板文件直接放在 polls/templates 文件夹中（而不是再建立一个 polls 子文件夹），但是这样做不太好。Django 将会选择第一个匹配的模板文件，如果你有一个模板文件正好和另一个应用中的某个模板文件重名，Django 没有办法 区分 它们。我们需要帮助 Django 选择正确的模板，最简单的方法就是把他们放入各自的 命名空间 中，也就是把这些模板放入一个和 自身 应用重名的子文件夹里
+
+
 
 ## Django管理页面
 - python manage.py createsuperuser 创建管理员用户
