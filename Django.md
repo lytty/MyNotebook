@@ -136,6 +136,11 @@
 
 - 「载入模板，填充上下文，再返回由它生成的 HttpResponse 对象」是一个非常常用的操作流程。于是 Django 提供了一个快捷函数，render()
 
+- 模板系统统一使用点符号来访问变量的属性
+
+- 模板标签
+    - {% static %} 模板标签会生成静态文件的绝对路径
+
 ## Django管理页面
 - python manage.py createsuperuser 创建管理员用户
 - 向管理页面中加入投票应用
