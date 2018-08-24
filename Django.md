@@ -10,6 +10,8 @@
 
 - python manage.py startapp polls：创建应用
 
+- python -c "import django; print(django.__path__)" 查看django源文件路径
+
 ## View
 - 视图函数和导入声明：
     ```

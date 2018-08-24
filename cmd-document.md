@@ -1,4 +1,13 @@
-1. rdesktop -f 10.5.2.25 #远程登录天津本地服务器
+1. 服务器登录及文件传输
+    - rdesktop -f 10.5.2.25 #远程登录天津本地服务器
+    - rdesktop -f shwts01[shwts02] #远程登录上海外网
+    - 上海外网传文件至天津外网：
+    
+        1. 上海外网（Windows系统）点击“开始”—“运行”——输入“\\shasync\Data_Exchange_Tunnel\To_Tianjin\PLD_APPS\haibin.xu” 放入文件
+        2. 天津外网（Ubuntu系统）smb://tjnas1/data_exchange_tunnel/From_Shanghai/PLD_APPS/haibin.xu  将数据拖到个人电脑桌面上使用
+    - 天津外网传文件至上海外网：
+        1. 天津外网（Ubuntu系统）smb://tjnas1/data_exchange_tunnel/To_Shanghai/PLD&FAE&CPM/haibin.xu  将数据上传
+        2. 上海外网（Windows系统）点击“开始”—“运行”——输入“\\shasync\Data_Exchange_Tunnel\From_Tianjin\PLD&FAE&CPM\haibin.xu” 将数据拖到个人电脑桌面上使用
 
 2. PIP安装软件包时，国外的源下载速度太慢，浪费时间。而且经常出现下载过程中超时现象。所以把PIP安装源替换成国内镜	像，可以大幅提升下载速度，还可以提高安装成功率， pip install -i https://pypi.tuna.tsinghua.edu.cn/simple [软件包名]
 
@@ -55,3 +64,7 @@
 
 17. 升级libnss后，有可能导致vs code、chrome浏览器启动失败，可使用以下命令进行解决：
     sudo apt install libnss3=2:3.15.4-1ubuntu7
+
+18. apt-get remove 移除Python3库时，直接在库的名字上加3即可，例如：
+    sudo apt-get remove python-six, 移除默认Python版本的库，
+    sudo apt-get remove python3-six, 则移除Python3版本的库，
