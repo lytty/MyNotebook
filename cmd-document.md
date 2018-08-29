@@ -43,9 +43,17 @@
     adb shell input swipe 500 500 500 200 
 
 13. Android 代码下载
+    ```
     repo init -u gitadmin@gitmirror.unisoc.com:android/platform/manifest.git -b sprdroid8.1_trunk
-    repo sync的时候加上 -c --no-tags 参数会让下载加快
+    repo sync -c --no-tags 参数会让下载加快
     repo init 也可以使用 -c --no-tags 啦，init过程飞快
+    ```
+
+    9.0 代码下载
+    ```
+    repo init -u ssh://gitadmin@gitmirror.spreadtrum.com/platform/manifest.git -b sprdroid9.0_trunk
+    repo sync -c -f
+    ```
 
 14. 更改文件、文件夹归属
     sudo chown -R SPREADTRUM\\haibin.xu:SPREADTRUM\\domain^users file/dir
@@ -67,4 +75,4 @@
 
 18. apt-get remove 移除Python3库时，直接在库的名字上加3即可，例如：
     sudo apt-get remove python-six, 移除默认Python版本的库，
-    sudo apt-get remove python3-six, 则移除Python3版本的库，
+    sudo apt-get remove python3-six, 则移除Python3版本的库
