@@ -44,26 +44,37 @@
 
 13. Android 代码下载
     ```
-    repo init -u gitadmin@gitmirror.unisoc.com:android/platform/manifest.git -b sprdroid8.1_trunk
+    repo init -u ssh://gitadmin@gitmirror.unisoc.com/platform/manifest -b <<branch>> -c - --no-tags 
     repo sync -c --no-tags 参数会让下载加快
     repo init 也可以使用 -c --no-tags 啦，init过程飞快
     ```
 
     9.0 代码下载
     ```
-    repo init -u ssh://gitadmin@gitmirror.spreadtrum.com/platform/manifest.git -b sprdroid9.0_trunk
+    repo init -u ssh://gitadmin@gitmirror.unisoc.com/platform/manifest.git -b sprdroid9.0_trunk
     repo sync -c -f
     ```
 
 14. 更改文件、文件夹归属
     sudo chown -R SPREADTRUM\\haibin.xu:SPREADTRUM\\domain^users file/dir
 
-15. Android 代码编译
-    source build/envsetup.sh
-    lunch
-    kheader
-    make bootimage
-    make -j8
+15. - Android 代码编译
+        ```
+        source build/envsetup.sh
+        lunch
+        kheader
+        make bootimage
+        make -j8
+        ```
+    - 编译服务器：
+        - ssh -X haibin.xu@tjand22[(10.5.2.51)], 密码：外网密码
+        - 文件拷贝：
+            - `scp authorized_keys haibin.xu@tjand02:~/.ssh`
+            - `scp system.img spreadtrum\\haibin.xu@10.5.41.59:~/Desktop/9832e_1h10_oversea`
+            - 多文件拷贝使用 `scp -r`
+
+
+    - 注： 更改manifest.xml后， 需要执行 repo init -m defaul.xml 已更新此xml下的代码
 
 16. Android 代码提交
     git pull
@@ -76,3 +87,5 @@
 18. apt-get remove 移除Python3库时，直接在库的名字上加3即可，例如：
     sudo apt-get remove python-six, 移除默认Python版本的库，
     sudo apt-get remove python3-six, 则移除Python3版本的库
+
+19. 打patch时参数为： `patch -p1 < x.patch` 撤销方法为： `patch -Rp1 < x.patch` 
