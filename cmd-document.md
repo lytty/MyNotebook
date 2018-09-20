@@ -55,8 +55,11 @@
     repo sync -c -f
     ```
 
-14. 更改文件、文件夹归属
-    sudo chown -R SPREADTRUM\\haibin.xu:SPREADTRUM\\domain^users file/dir
+14. - 更改文件、文件夹归属
+    `sudo chown -R SPREADTRUM\\haibin.xu:SPREADTRUM\\domain^users file/dir`
+    - 查看目录大小
+    `du -sh [dir]`
+
 
 15. - Android 代码编译
         ```
@@ -89,3 +92,9 @@
     sudo apt-get remove python3-six, 则移除Python3版本的库
 
 19. 打patch时参数为： `patch -p1 < x.patch` 撤销方法为： `patch -Rp1 < x.patch` 
+
+20. vim/vi 中字符串替换：
+    - 全替换： :%s/vivian/sky/（等同于 :g/vivian/s//sky/） 替换每一行的第一个 vivian 为 sky 
+    - 单行替换： 
+        - 替换第一个:s/vivian/sky/ 替换当前行第一个 vivian 为 sky 
+        - 替换所有:s/vivian/sky/g 替换当前行所有 vivian 为 sky 
