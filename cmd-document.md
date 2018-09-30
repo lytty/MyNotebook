@@ -98,3 +98,6 @@
     - 单行替换： 
         - 替换第一个:s/vivian/sky/ 替换当前行第一个 vivian 为 sky 
         - 替换所有:s/vivian/sky/g 替换当前行所有 vivian 为 sky 
+
+21. 串口log抓取命令：
+    `sudo minicom -D /dev/ttyUSB2 -C minicom.log`
