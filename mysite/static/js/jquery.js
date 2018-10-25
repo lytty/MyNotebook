@@ -9597,6 +9597,8 @@ jQuery.ajaxTransport( function( options ) {
 				try {
 
 					// Do send the request (this may raise an exception)
+					console.log(options.hasContent);
+					console.log(options.data);
 					xhr.send( options.hasContent && options.data || null );
 				} catch ( e ) {
 
