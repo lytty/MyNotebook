@@ -1,6 +1,6 @@
 1. 服务器登录及文件传输
     - rdesktop -f 10.5.2.25 #远程登录天津本地服务器
-    - rdesktop -f shwts01[shwts02] #远程登录上海外网
+    - rdesktop -f shwts01 [shwts02] #远程登录上海外网
     - 上海外网传文件至天津外网：
     
         1. 上海外网（Windows系统）点击“开始”—“运行”——输入“\\shasync\Data_Exchange_Tunnel\To_Tianjin\PLD_APPS\haibin.xu” 放入文件
@@ -101,3 +101,15 @@
 
 21. 串口log抓取命令：
     `sudo minicom -D /dev/ttyUSB2 -C minicom.log`
+    `sudo gcom /dev/ttyUSB2`
+
+22. 查看屏幕亮与否命令:
+    - `cat /sys/class/backlight/sprd_backlight/actual_brightness`
+
+23. researchDownload 读取手机分区内容到PC的方法：
+    - Flash Operations将需要从手机中dump出来的分区打钩
+    - Main Page下载界面只将FDL1和FDL2打钩
+    - 点击下载，即可将手机文件dump到PC指定路径
+
+24. 多线程下载命令：
+    `axel -an [线程数] [网址]`
