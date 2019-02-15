@@ -2,12 +2,13 @@
     - rdesktop -f 10.5.2.25 #远程登录天津本地服务器
     - rdesktop -f shwts01 [shwts02] #远程登录上海外网
     - 上海外网传文件至天津外网：
-    
         1. 上海外网（Windows系统）点击“开始”—“运行”——输入“\\shasync\Data_Exchange_Tunnel\To_Tianjin\PLD_APPS\haibin.xu” 放入文件
         2. 天津外网（Ubuntu系统）smb://tjnas1/data_exchange_tunnel/From_Shanghai/PLD_APPS/haibin.xu  将数据拖到个人电脑桌面上使用
     - 天津外网传文件至上海外网：
         1. 天津外网（Ubuntu系统）smb://tjnas1/data_exchange_tunnel/To_Shanghai/PLD&FAE&CPM/haibin.xu  将数据上传
         2. 上海外网（Windows系统）点击“开始”—“运行”——输入“\\shasync\Data_Exchange_Tunnel\From_Tianjin\PLD&FAE&CPM\haibin.xu” 将数据拖到个人电脑桌面上使用
+    - ResearchDownload: smb://shnas01/publicshared/ShareData/Debug_Tools/HistoryVersion
+
 
 2. PIP安装软件包时，国外的源下载速度太慢，浪费时间。而且经常出现下载过程中超时现象。所以把PIP安装源替换成国内镜	像，可以大幅提升下载速度，还可以提高安装成功率， pip install -i https://pypi.tuna.tsinghua.edu.cn/simple [软件包名]
 
@@ -30,8 +31,23 @@
    Python2.7 安装django使用如下命令： sudo pip install  -i https://pypi.tuna.tsinghua.edu.cn/simple "django<2"
 
 9. Anaconda:
-   sudo ./Anaconda3-5.2.0-Linux-x86_64.sh 进行安装， 注意安装位置，默认安装在/root/anaconda3目录，建议修改为home
-   删除时， 直接删除anaconda3目录即可（建议直接将该目录重命名，以免后期想使用时再重新安装）， 另外去除或注销.bashrc中的#export PATH=/***/anaconda3/bin:$PATH
+   - sudo ./Anaconda3-5.2.0-Linux-x86_64.sh 进行安装， 注意安装位置，默认安装在/root/anaconda3目录，建议修改为home
+   - 删除时， 直接删除anaconda3目录即可（建议直接将该目录重命名，以免后期想使用时再重新安装）， 另外去除或注销.bashrc中的#export PATH=/***/anaconda3/bin:$PATH
+   - 如果本地同时安装有anaconda3，　anaconda２，可通过在.bashrc文件中屏蔽一个，开启另一个来切换anaconda版本，切换后，务必重新执行一下.bashrc文件
+   - 常用命令：
+        ```
+        activate  // 切换到base环境
+        activate learn // 切换到learn环境
+        conda create -n learn python=3  // 创建一个名为learn的环境并指定python版本为3(的最新版本)
+        conda env list // 列出conda管理的所有环境
+        conda list // 列出当前环境的所有包
+        conda install requests 安装requests包
+        conda remove requests 卸载requets包
+        conda remove -n learn --all // 删除learn环境及下属所有包
+        conda update requests 更新requests包
+        conda env export > environment.yaml  // 导出当前环境的包信息
+        conda env create -f environment.yaml  // 用配置文件创建新的虚拟环境
+        ```
 
 10. apt-get remove --purge xxx # 移除应用及配置
     apt-get autoremove # 移除没用的包
@@ -44,7 +60,7 @@
 
 13. Android 代码下载
     ```
-    repo init -u ssh://gitadmin@gitmirror.unisoc.com/platform/manifest -b <<branch>> -c - --no-tags 
+    repo init -u ssh://gitadmin@gitmirror.unisoc.com/platform/manifest -b <<branch>> -c --no-tags 
     repo sync -c --no-tags 参数会让下载加快
     repo init 也可以使用 -c --no-tags 啦，init过程飞快
     ```
@@ -53,6 +69,15 @@
     ```
     repo init -u ssh://gitadmin@gitmirror.unisoc.com/platform/manifest.git -b sprdroid9.0_trunk
     repo sync -c -f
+    ```
+
+    更新manifest.xml
+    ```
+    croot;
+    cd .repo/manifests;
+    [copy your manifest.xml to current directory]
+    croot;
+    repo init -m [your manifest file]
     ```
 
 14. - 更改文件、文件夹归属
@@ -73,7 +98,7 @@
         - ssh -X haibin.xu@tjand22[(10.5.2.51)], 密码：外网密码
         - 文件拷贝：
             - `scp authorized_keys haibin.xu@tjand02:~/.ssh`
-            - `scp system.img spreadtrum\\haibin.xu@10.5.41.59:~/Desktop/9832e_1h10_oversea`
+            - `scp -r dt.img system.img kernel vendor.img spreadtrum\\haibin.xu@10.5.41.59:~/Desktop/sharkl5_8.1_img/sharkl5_8.1_img`
             - 多文件拷贝使用 `scp -r`
 
 
@@ -113,3 +138,28 @@
 
 24. 多线程下载命令：
     `axel -an [线程数] [网址]`
+
+25. 查看文件大小命令：
+    目录： `du -h`；
+    文件： `ll -h`;
+
+26. 本地制作userdata.img磁盘的方法和步骤
+    ```
+    sudo apt install android-tools-fsutils
+    #新建一个data目录
+    #制作一个512M大小的userdata.img磁盘
+    make_ext4fs -T -1 -L data -l $((512*1024*1024)) -a data userdata.img data/
+    ```
+
+27. Linux下rm -rf删除文件夹报错_ Device or resource busy
+    ```
+    1. 在终端执行 lsof +D 再加上无法删除文件的目录
+    2. kill -9 pid
+    3. sudo umount dir
+    4. rm -rf dir
+    ```
+
+28. adb采集整机CPU使用率和分核CPU使用率
+    ```
+    adb shell cat /proc/stat
+    ```
