@@ -98,7 +98,7 @@
         - ssh -X haibin.xu@tjand22[(10.5.2.51)], 密码：外网密码
         - 文件拷贝：
             - `scp authorized_keys haibin.xu@tjand02:~/.ssh`
-            - `scp -r dt.img system.img kernel vendor.img spreadtrum\\haibin.xu@10.5.41.59:~/Desktop/sharkl5_8.1_img/sharkl5_8.1_img`
+            - `scp -r dt.img system.img kernel vendor.img spreadtrum\\haibin.xu@10.5.41.70:~/Desktop/sharkl5_8.1_img/sharkl5_8.1_img`
             - 多文件拷贝使用 `scp -r`
 
 
@@ -163,3 +163,53 @@
     ```
     adb shell cat /proc/stat
     ```
+
+29. SVN访问方式：
+    ```
+    1. 浏览器： http://shexsvn01/!/#SYSSW/view/head/TJSYSPF
+    2. linux系统： svn co  http://shexsvn01/svn/SYSSW/TJSYSPF 也可以单独co一个特定的目录，比如tmp目录 svn co  http://shexsvn01/svn/SYSSW/TJSYSPF/tmp
+    3. windows服务器： 使用repo-browser，然后直接拖拽自己需要的文档到本地
+    ```
+
+30. sshfs mount远程服务器目录
+    ```
+    1. 安装sshfs
+        $ sudo apt-get install sshfs
+    2. 创建本地mount目录
+        $ mkdir ~43
+    3. 将远程服务器目录mount到本地
+        $ sshfs "luther.ge@10.5.2.43:" ~/43
+    4. 操作43目录
+        $ ls ~/43
+    ```
+
+31. yp提交工具安装
+    - 查找tiny-formatter目录，获取路径“ssh://...”
+        ‘’‘
+        haibin.xu@tjand02:~/sprdroid9.0_trunk/vendor/sprd/proprietories-source/tiny-formatter$ git remote -v
+        korg	ssh://gitadmin@gitmirror.unisoc.com/vendor/sprd/proprietories-source/tiny-formatter (fetch)
+        korg	ssh://gitadmin@gitmirror.unisoc.com/vendor/sprd/proprietories-source/tiny-formatter (push)
+        ’‘’
+    - 本地拷贝
+        ‘’‘
+        git clone ssh://gitadmin@gitmirror.unisoc.com/vendor/sprd/proprietories-source/tiny-formatter
+        ’‘’
+    - 切换分支
+        ‘’‘
+        cd tiny-formatter
+        git branch -a
+        git checkout origin/sprdroid9.0_trunk
+        ’‘’
+    - 获取yp所在目录
+        ‘’‘
+        cd tiny-formatter/tool
+        pwd
+        /home/local/SPREADTRUM/haibin.xu/tiny-formatter/tool
+        ’‘’
+    - 添加环境变量
+        ‘’‘
+        vim ～/.bashrc
+        在最后添加：export PATH=/home/local/SPREADTRUM/haibin.xu/tiny-formatter/tool:$PATH
+        保存退出
+        source ～/.bashrc
+        ’‘’
