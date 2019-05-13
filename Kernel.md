@@ -1,5 +1,23 @@
 # Kernel 笔记
 
+## 常用数字进制对照
+1. 0x1 0000 0000 = 4G
+2. 0x  4000 0000 = 1G
+3. 0x  8000 0000 = 2G
+4. 0x  C000 0000 = 3G
+
+## 内核常用宏
+1. PAGE_OFFSET: 描述内核空间的偏移量
+
+## 内核调试
+- 模拟4核 Cortex-A9 Versatile Express开发平台：
+    ```
+    qemu-system-arm -M vexpress-a9 -smp 4 -m 1024M -kernel arch/arm/boot/zImage -append "rdinit=/linuxrc console=ttyAMA0 loglevel=8" -dtb arch/arm/boot/dts/vexpress-v2p-ca9.dtb -nographic
+    ```
+
+- 关闭QEMU平台：killall qemu-system-arm
+
+
 ## DTS（设备树）
 - 如果要使用Device Tree，首先用户要了解自己的硬件配置和系统运行参数，并把这些信息组织成Device Tree source file。通过DTC（Device Tree Compiler），可以将这些适合人类阅读的Device Tree source file变成适合机器处理的Device Tree binary file（有一个更好听的名字，DTB，device tree blob）。在系统启动的时候，boot program（例如：firmware、bootloader）可以将保存在flash中的DTB copy到内存（当然也可以通过其他方式，例如可以通过bootloader的交互式命令加载DTB，或者firmware可以探测到device的信息，组织成DTB保存在内存中），并把DTB的起始地址传递给client program（例如OS kernel，bootloader或者其他特殊功能的程序）。对于计算机系统（computer system），一般是firmware->bootloader->OS，对于嵌入式系统，一般是bootloader->OS。
 
@@ -9,19 +27,19 @@
 
 ## 内存大小
 - 内存定义路径（unisoc）：sprdroid9.0_trunk/kernel4.14/arch/arm64/boot/dts/sprd/ums312-2h10.dts
-    ‘’‘
+    ```
     33	memory: memory {
     34		device_type = "memory";
     35		reg = <0x0 0x80000000 0x0 0x80000000>; #<base-addr size>
     36	};
-    ’‘’
+    ```
 - 读取内存：
     1. sprdroid9.0_trunk/kernel4.14/init/main.c：
-    ‘’‘
+    ```
     534	setup_arch(&command_line);
-    ’‘’
+    ```
     2. sprdroid9.0_trunk/kernel4.14/arch/arm64/kernel/setup.c：
-    ‘’‘
+    ```
     245void __init setup_arch(char **cmdline_p)
     246{
     247	pr_info("Boot CPU: AArch64 Processor [%08x]\n", read_cpuid_id());
@@ -38,17 +56,17 @@
     258	early_ioremap_init();
     259
     260	setup_machine_fdt(__fdt_pointer); “__fdt_pointer 是bootloader传递过来的，代表devicetree在内存中的地址”
-    ’‘’
+    ```
     3. sprdroid9.0_trunk/kernel4.14/arch/arm64/kernel/setup.c：
-    ‘’‘
+    ```
     185 if (!dt_virt || !early_init_dt_scan(dt_virt))
-    ’‘’
+    ```
     4. sprdroid9.0_trunk/kernel4.14/drivers/of/fdt.c
-    ‘’‘
+    ```
     1322	early_init_dt_scan_nodes();
-    ’‘’
+    ```
     5. sprdroid9.0_trunk/kernel4.14/drivers/of/fdt.c
-    ‘’‘
+    ```
     1302void __init early_init_dt_scan_nodes(void)
     1303{
     1304	/* Retrieve various information from the /chosen node */
@@ -60,6 +78,162 @@
     1310	/* Setup memory, calling early_init_dt_add_memory_arch */
     1311	of_scan_flat_dt(early_init_dt_scan_memory, NULL); "获取dts中memory节点信息， base-addr和size"
     1312}
-    ’‘’
+    ```
 
 ## 物理内存映射
+- 页表初始化 start_kernel() -> setup_arch() -> paging_init()
+    1. sprdroid9.0_trunk/kernel4.14/init/main.c:
+    ```
+    534	setup_arch(&command_line);
+    ```
+    2. sprdroid9.0_trunk/kernel4.14/arch/arm64/kernel/setup.c：
+    ```
+    1075 void __init setup_arch(char **cmdline_p)
+    {
+    1080	mdesc = setup_machine_fdt(__atags_pointer); “输入是设备树(DTB)首地址，返回的mdesc是描述平台信息的结构体”
+    1121	paging_init(mdesc);
+    }
+    ```
+    3. sprdroidq_trunk/kernel4.14/arch/arm/mm/mmu.c
+    ```
+    1622void __init paging_init(const struct machine_desc *mdesc)
+    1623{
+    1624	void *zero_page;
+    1625
+    1626	prepare_page_table();
+    1627	map_lowmem();
+    1647}
+    ```
+    4. sprdroidq_trunk/kernel4.14/arch/arm/mm/mmu.c
+    ```
+    1246static inline void prepare_page_table(void)
+    1247{
+    1248	unsigned long addr;
+    1249	phys_addr_t end;
+    1250
+    1251	/*
+    1252	 * Clear out all the mappings below the kernel image.
+    1253	 */
+    1254	for (addr = 0; addr < MODULES_VADDR; addr += PMD_SIZE)
+    1255		pmd_clear(pmd_off_k(addr));
+    1256
+    1257#ifdef CONFIG_XIP_KERNEL
+    1258	/* The XIP kernel is mapped in the module area -- skip over it */
+    1259	addr = ((unsigned long)_exiprom + PMD_SIZE - 1) & PMD_MASK;
+    1260#endif
+    1261	for ( ; addr < PAGE_OFFSET; addr += PMD_SIZE)
+    1262		pmd_clear(pmd_off_k(addr));
+    1263
+    1264	/*
+    1265	 * Find the end of the first block of lowmem.
+    1266	 */
+    1267	end = memblock.memory.regions[0].base + memblock.memory.regions[0].size;
+    1268	if (end >= arm_lowmem_limit)
+    1269		end = arm_lowmem_limit;
+    1270
+    1271	/*
+    1272	 * Clear out all the kernel space mappings, except for the first
+    1273	 * memory bank, up to the vmalloc region.
+    1274	 */
+    1275	for (addr = __phys_to_virt(end);
+    1276	     addr < VMALLOC_START; addr += PMD_SIZE)
+    1277		pmd_clear(pmd_off_k(addr));
+    1278}
+
+    这里对如下3段地址调用pmd_clear()函数类清除一级页表项到内容：
+    0x0 ~ MODULES_VADDR; 用户空间，线性映射， 低端地址空间
+    MODULES_VADDR ~ PAGE_OFFSET; 用户空间， 线性映射， 地段地址空间
+    arm_lowmem_limit ~ VMALLOC_START;  内核空间，高端地址空间， 线性映射， VMALLOC_OFFSET区间
+
+    内存ram布局参考《空间划分》章节
+    ``` 
+    5. sprdroidq_trunk/kernel4.14/arch/arm/mm/mmu.c
+    ```
+    1429static void __init map_lowmem(void) "主要创建低端地址映射"
+    ```
+
+
+## zone初始化
+- 页表初始化完成后，内核就可以对内存进行管理了， 但是内核并不是统一对待这些页面，内核采用区块zone到方式来管理内存
+
+- struct zone数据结构：sprdroidq_trunk/kernel4.14/include/linux/mmzone.h
+    ```
+    360struct zone
+    ```
+
+- zone类型：ZONE_DMA, ZONE_DMA32, ZONE_NORMAL, ZONE_HIGHMEM
+    ```
+    303enum zone_type
+    ```
+
+- zone初始化
+    1. start_kernel -> setup_arch -> paging_init -> bootmem_init -> zone_sizes_init -> free_area_init_node -> free_area_init_core(sprdroidq_trunk/kernel4.14/mm/page_alloc.c)
+
+    2. sprdroidq_trunk/kernel4.14/arch/arm/mm/init.c:
+        - zone的初始化在bootmem_init中进行。通过find_limits找出物理内存开始帧号min_low_pfn、结束帧号max_pfn、NORMAL区域的结束帧号max_low_pfn
+        ```    
+            303void __init bootmem_init(void)
+            304{
+                ...
+            310	find_limits(&min, &max_low, &max_high); "min_now_pfn=0x60000 max_low_pfn=0x8f800 max_pfn=0xa0000，通过全局变量memblock获取信息"
+                ...           
+            331	zone_sizes_init(min, max_low, max_high); "从min_low_pfn到max_low_pfn是ZONE_NORMAL，max_low_pfn到max_pfn是ZONE_HIGHMEM"
+            }
+        ```
+        - zone_sizes_init中计算出每个zone大小以及zone之间的hole，然后调用free_area_init_node创建内存节点的zone
+        ```
+            140 static void __init zone_sizes_init(unsigned long min, unsigned long max_low, 141	unsigned long max_high)
+        ```
+- zonelist数据结构
+    1. 系统中会有一个zonelist的数据结构，伙伴系统分配器会从zonelist开始分配内存，zonelist有一个zoneref数组，数组里有一个成员会指向zone数据结构。zoneref数组的第一个成员指向的zone是页面分配器的第一个候选者，其它成员则是第一个候选者分配失败之后才考虑，优先级逐渐降低。
+
+
+## 空间划分
+- 32bit Linux中，一共能使用到虚拟地址空间时4GB，用户空间和内核空间到划分通常时3：1，也可以按照2：2来划分。 
+
+- [sprdroidq_trunk/kernel4.14/arch/arm/Kconfig], 有一个“memory split”配置选项，可以用于调整内核空间和用户空间到大小划分。通常使用VMSPLIT_3G
+    ```
+    1420choice
+    1421	prompt "Memory split"
+    1422	depends on MMU
+    1423	default VMSPLIT_3G
+    1424	help
+    1425	  Select the desired split between kernel and user memory.
+    1426
+    1427	  If you are not absolutely sure what you are doing, leave this
+    1428	  option alone!
+    1429
+    1430	config VMSPLIT_3G
+    1431		bool "3G/1G user/kernel split"
+    1432	config VMSPLIT_3G_OPT
+    1433		depends on !ARM_LPAE
+    1434		bool "3G/1G user/kernel split (for full 1G low memory)"
+    1435	config VMSPLIT_2G
+    1436		bool "2G/2G user/kernel split"
+    1437	config VMSPLIT_1G
+    1438		bool "1G/3G user/kernel split"
+    1439endchoice   
+    ```
+
+- 内存ram布局：
+    ![avatar](picture/内核ram布局.png)
+    ![avatar](picture/内核ram布局2.png)
+
+- 线性映射到物理地址和虚拟地址转换关系, 
+    - [sprdroidq_trunk/kernel4.14/arch/arm/include/asm/memory.h]
+        ```
+        255static inline phys_addr_t __virt_to_phys_nodebug(unsigned long x)
+        256{
+        257	return (phys_addr_t)x - PAGE_OFFSET + PHYS_OFFSET;
+        258}
+        260static inline unsigned long __phys_to_virt(phys_addr_t x)
+        261{
+        262	return x - PHYS_OFFSET + PAGE_OFFSET;
+        263}
+
+        ```
+- 伙伴系统(Buddy System)
+    1. 操作系统中最常用到一种动态存储管理方法，在用户提出申请时，分配一块大小合适到内存块给用户，反之在用户释放内存块时回收。
+    2. 在伙伴系统中，内存块是2到order次幂。
+    3. Linux内核中order到最大值用MAX_ORDER来表示，通常时11，也就是把所有的空闲页面分组成11个内存块链表，每个内存块链表分别包含1、2、4、8、16、32、...、1024个连续到页面。
+    4. 1024个页面对应着4MB大小的连续物理内存。
