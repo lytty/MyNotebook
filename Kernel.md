@@ -5,6 +5,9 @@
 2. 0x  C000 0000 = 3G
 3. 0x  8000 0000 = 2G
 4. 0x  4000 0000 = 1G
+5. 0x  0010 0000 = 1M
+6. 0x  0000 0400 = 1K
+7. 0x  0000 1000 = 4K
 ---
 
 ## 内核常用宏
@@ -346,7 +349,7 @@
     ![avatar](picture/内核ram布局.png)
     ![avatar](picture/内核ram布局2.png)
 
-- 线性映射到物理地址和虚拟地址转换关系, 
+- 线性映射到物理地址和虚拟地址转换关系
     - [sprdroidq_trunk/kernel4.14/arch/arm/include/asm/memory.h]
         ```
         255static inline phys_addr_t __virt_to_phys_nodebug(unsigned long x)
@@ -380,3 +383,4 @@
 - 分配掩码：gfp（get free page）
     - 分配掩码布局：![avatar](picture/分配掩码布局.png)
     - https://blog.csdn.net/farmwang/article/details/66975128
+
