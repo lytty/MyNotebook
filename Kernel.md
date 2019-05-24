@@ -534,3 +534,87 @@
     - 分配掩码布局：![avatar](picture/分配掩码布局.png)
     - https://blog.csdn.net/farmwang/article/details/66975128
 
+
+## slab分配器
+### slab描述符
+```
+11struct kmem_cache {
+12	struct array_cache __percpu *cpu_cache; //一个Per-CPU的struct array_cache数据结构，每个CPU一个，表示本地CPU的对象缓冲池
+13
+14/* 1) Cache tunables. Protected by slab_mutex */
+15	unsigned int batchcount; //表示当前CPU的本地对象缓冲池array_cache为空时，从共享的缓冲池或者slabs_partial/slabs_free列表中获取对象的数目。
+16	unsigned int limit; // 当本地对象缓冲池的空闲对象数目大于limit时就会主动释放batchcount个对象，便于内核回收和销毁slab
+17	unsigned int shared; // 用于多核系统
+18
+19	unsigned int size; // 对象的长度，这个长度要加上align对齐的字节
+20	struct reciprocal_value reciprocal_buffer_size; 
+21/* 2) touched by every alloc & free from the backend */
+22
+23	unsigned int flags;		/* constant flags */ // 对象的分配掩码
+24	unsigned int num;		/* # of objs per slab */ // 一个slab中最多可以有多少个对象
+25
+26/* 3) cache_grow/shrink */
+27	/* order of pgs per slab (2^n) */
+28	unsigned int gfporder; // 一个slab中占用2^gfporder个页面
+29
+30	/* force GFP flags, e.g. GFP_DMA */
+31	gfp_t allocflags;
+32
+33	size_t colour;			/* cache colouring range */ // 一个slab中有几个不同的cache line
+34	unsigned int colour_off;	/* colour offset */ // 一个cache colour的长度，和L1 cache line大小相同
+35	struct kmem_cache *freelist_cache; 
+36	unsigned int freelist_size; // 每个对象要占用1Byte来存放freelist
+37
+38	/* constructor func */
+39	void (*ctor)(void *obj);
+40
+41/* 4) cache creation/removal */
+42	const char *name; // 描述符的名称
+43	struct list_head list;
+44	int refcount;
+45	int object_size; // 对象的实际大小
+46	int align; // 对齐的长度
+47
+48/* 5) statistics */
+49#ifdef CONFIG_DEBUG_SLAB
+50	unsigned long num_active;
+51	unsigned long num_allocations;
+52	unsigned long high_mark;
+53	unsigned long grown;
+54	unsigned long reaped;
+55	unsigned long errors;
+56	unsigned long max_freeable;
+57	unsigned long node_allocs;
+58	unsigned long node_frees;
+59	unsigned long node_overflow;
+60	atomic_t allochit;
+61	atomic_t allocmiss;
+62	atomic_t freehit;
+63	atomic_t freemiss;
+64#ifdef CONFIG_DEBUG_SLAB_LEAK
+65	atomic_t store_user_clean;
+66#endif
+67
+68	/*
+69	 * If debugging is enabled, then the allocator can add additional
+70	 * fields and/or padding to every object. size contains the total
+71	 * object size including these internal fields, the following two
+72	 * variables contain the offset to the user object and its size.
+73	 */
+74	int obj_offset;
+75#endif /* CONFIG_DEBUG_SLAB */
+76
+77#ifdef CONFIG_MEMCG
+78	struct memcg_cache_params memcg_params;
+79#endif
+80#ifdef CONFIG_KASAN
+81	struct kasan_cache kasan_info;
+82#endif
+83
+84#ifdef CONFIG_SLAB_FREELIST_RANDOM
+85	unsigned int *random_seq;
+86#endif
+87
+88	struct kmem_cache_node *node[MAX_NUMNODES]; //slab节点，在NUMA系统中每个节点有一个struct kmem_cache_node数据结构。在ARM Vexpress平台中，只有一个节点
+89};
+```
