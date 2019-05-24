@@ -288,7 +288,157 @@
 
 - struct zone数据结构：sprdroidq_trunk/kernel4.14/include/linux/mmzone.h
     ```
-    360struct zone
+    359struct zone {
+    360	/* Read-mostly fields */
+    361
+    362	/* zone watermarks, access with *_wmark_pages(zone) macros */
+    363	unsigned long watermark[NR_WMARK]; /*每个zone在系统启动时会计算出3个水位值，分别是WMARK_MIN、WMARK_LOW、WMARK_HIGH，这在页面分配器和kswapd页面回收中会用到。*/
+    364
+    365	unsigned long nr_reserved_highatomic;
+    366
+    367	/*
+    368	 * We don't know if the memory that we're going to allocate will be
+    369	 * freeable or/and it will be released eventually, so to avoid totally
+    370	 * wasting several GB of ram we must reserve some of the lower zone
+    371	 * memory (otherwise we risk to run OOM on the lower zones despite
+    372	 * there being tons of freeable ram on the higher zones).  This array is
+    373	 * recalculated at runtime if the sysctl_lowmem_reserve_ratio sysctl
+    374	 * changes.
+    375	 */
+    376	long lowmem_reserve[MAX_NR_ZONES]; //zone中预留的内存
+    377
+    378#ifdef CONFIG_NUMA
+    379	int node;
+    380#endif
+    381	struct pglist_data	*zone_pgdat; //指向内存节点
+    382	struct per_cpu_pageset __percpu *pageset; //用于维护Per-CPU上的一系列页面，以减少自旋锁的争用
+    383
+    384#ifndef CONFIG_SPARSEMEM
+    385	/*
+    386	 * Flags for a pageblock_nr_pages block. See pageblock-flags.h.
+    387	 * In SPARSEMEM, this map is stored in struct mem_section
+    388	 */
+    389	unsigned long		*pageblock_flags;
+    390#endif /* CONFIG_SPARSEMEM */
+    391
+    392	/* zone_start_pfn == zone_start_paddr >> PAGE_SHIFT */
+    393	unsigned long		zone_start_pfn; // zone中开始页面的页帧号
+    394
+    395	/*
+    396	 * spanned_pages is the total pages spanned by the zone, including
+    397	 * holes, which is calculated as:
+    398	 * 	spanned_pages = zone_end_pfn - zone_start_pfn;
+    399	 *
+    400	 * present_pages is physical pages existing within the zone, which
+    401	 * is calculated as:
+    402	 *	present_pages = spanned_pages - absent_pages(pages in holes);
+    403	 *
+    404	 * managed_pages is present pages managed by the buddy system, which
+    405	 * is calculated as (reserved_pages includes pages allocated by the
+    406	 * bootmem allocator):
+    407	 *	managed_pages = present_pages - reserved_pages;
+    408	 *
+    409	 * So present_pages may be used by memory hotplug or memory power
+    410	 * management logic to figure out unmanaged pages by checking
+    411	 * (present_pages - managed_pages). And managed_pages should be used
+    412	 * by page allocator and vm scanner to calculate all kinds of watermarks
+    413	 * and thresholds.
+    414	 *
+    415	 * Locking rules:
+    416	 *
+    417	 * zone_start_pfn and spanned_pages are protected by span_seqlock.
+    418	 * It is a seqlock because it has to be read outside of zone->lock,
+    419	 * and it is done in the main allocator path.  But, it is written
+    420	 * quite infrequently.
+    421	 *
+    422	 * The span_seq lock is declared along with zone->lock because it is
+    423	 * frequently read in proximity to zone->lock.  It's good to
+    424	 * give them a chance of being in the same cacheline.
+    425	 *
+    426	 * Write access to present_pages at runtime should be protected by
+    427	 * mem_hotplug_begin/end(). Any reader who can't tolerant drift of
+    428	 * present_pages should get_online_mems() to get a stable value.
+    429	 *
+    430	 * Read access to managed_pages should be safe because it's unsigned
+    431	 * long. Write access to zone->managed_pages and totalram_pages are
+    432	 * protected by managed_page_count_lock at runtime. Idealy only
+    433	 * adjust_managed_page_count() should be used instead of directly
+    434	 * touching zone->managed_pages and totalram_pages.
+    435	 */
+    436	unsigned long		managed_pages; // zone中被伙伴系统管理的页面数量
+    437	unsigned long		spanned_pages; // zone中包含的页面数量
+    438	unsigned long		present_pages; // zone中实际管理的页面数量。对一些体系结构来说，其值和spanned_pages相等
+    439
+    440	const char		*name;
+    441
+    442#ifdef CONFIG_MEMORY_ISOLATION
+    443	/*
+    444	 * Number of isolated pageblock. It is used to solve incorrect
+    445	 * freepage counting problem due to racy retrieving migratetype
+    446	 * of pageblock. Protected by zone->lock.
+    447	 */
+    448	unsigned long		nr_isolate_pageblock;
+    449#endif
+    450
+    451#ifdef CONFIG_MEMORY_HOTPLUG
+    452	/* see spanned/present_pages for more description */
+    453	seqlock_t		span_seqlock;
+    454#endif
+    455
+    456	int initialized;
+    457
+    458	/* Write-intensive fields used from the page allocator */
+    459	ZONE_PADDING(_pad1_)
+    460
+    461	/* free areas of different sizes */
+    462	struct free_area	free_area[MAX_ORDER]; // 管理空闲区域的数组，包含管理链表等
+    463
+    464	/* zone flags, see below */
+    465	unsigned long		flags;
+    466
+    467	/* Primarily protects free_area */
+    468	spinlock_t		lock; // 并行访问时用于对zone保护的自旋锁
+    469
+    470	/* Write-intensive fields used by compaction and vmstats. */
+    471	ZONE_PADDING(_pad2_)
+    472
+    473	/*
+    474	 * When free pages are below this point, additional steps are taken
+    475	 * when reading the number of free pages to avoid per-cpu counter
+    476	 * drift allowing watermarks to be breached
+    477	 */
+    478	unsigned long percpu_drift_mark;
+    479
+    480#if defined CONFIG_COMPACTION || defined CONFIG_CMA
+    481	/* pfn where compaction free scanner should start */
+    482	unsigned long		compact_cached_free_pfn;
+    483	/* pfn where async and sync compaction migration scanner should start */
+    484	unsigned long		compact_cached_migrate_pfn[2];
+    485#endif
+    486
+    487#ifdef CONFIG_COMPACTION
+    488	/*
+    489	 * On compaction failure, 1<<compact_defer_shift compactions
+    490	 * are skipped before trying again. The number attempted since
+    491	 * last failure is tracked with compact_considered.
+    492	 */
+    493	unsigned int		compact_considered;
+    494	unsigned int		compact_defer_shift;
+    495	int			compact_order_failed;
+    496#endif
+    497
+    498#if defined CONFIG_COMPACTION || defined CONFIG_CMA
+    499	/* Set to true when the PG_migrate_skip bits should be cleared */
+    500	bool			compact_blockskip_flush;
+    501#endif
+    502
+    503	bool			contiguous;
+    504
+    505	ZONE_PADDING(_pad3_)
+    506	/* Zone statistics */
+    507	atomic_long_t		vm_stat[NR_VM_ZONE_STAT_ITEMS]; //zone 计数
+    508	atomic_long_t		vm_numa_stat[NR_VM_NUMA_STAT_ITEMS];
+    509} ____cacheline_internodealigned_in_smp;
     ```
 
 - zone类型：ZONE_DMA, ZONE_DMA32, ZONE_NORMAL, ZONE_HIGHMEM
