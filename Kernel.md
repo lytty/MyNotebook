@@ -618,3 +618,33 @@
 88	struct kmem_cache_node *node[MAX_NUMNODES]; //slab节点，在NUMA系统中每个节点有一个struct kmem_cache_node数据结构。在ARM Vexpress平台中，只有一个节点
 89};
 ```
+- slab分配器可以分配以Byte为单位的小内存，是用来解决小内存分配问题的，也是内存分配中非常重要的角色之一。其最终还是由伙伴系统来分配出实际的物理页面，只不过slab分配器在这些连续的物理页面上实现了自己的算法，以此来对小内存块进行管理。
+
+- 创建slab描述符
+    ```
+    struct kmem_cache * kmem_cache_create(const chat *name, size_t size, size_t align,
+        unsigned long flags, void (*ctor)(void *))
+    
+    name: slab描述符的名称；
+    size: 缓存对象的大小；
+    align：缓存对象需要对齐的字节数；
+    flags：分配掩码；
+    ctor：对象的构造函数；
+    ```
+
+- 释放slab描述符
+    ```
+    void kmem_cache_destroy(struct kmem_cache *s)
+    ```
+
+- 分配缓存对象
+    ```
+    void *kmem_cache_alloc(struct kmem_cache *, gfp_t flags)
+    ```
+
+- 释放缓存对象
+    ```
+    void kmem_cache_free(struct kmem_cache *, void *)
+    ```
+- kmalloc函数接口大量使用了slab机制
+    - kmalloc()函数用于创建通用的缓存，类似于用户空间中C标准库malloc()函数
