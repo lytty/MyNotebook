@@ -536,6 +536,8 @@
 
 
 ## slab分配器
+### slab系统架构图
+- ![avator](picture/slab系统架构图.PNG)
 ### slab描述符
 ```
 11struct kmem_cache {
@@ -648,3 +650,50 @@
     ```
 - kmalloc函数接口大量使用了slab机制
     - kmalloc()函数用于创建通用的缓存，类似于用户空间中C标准库malloc()函数
+---
+
+## vmalloc
+### kmalloc、vmalloc区别
+- kmalloc基于slab分配器，slab缓冲区建立在一个连续物理地址的大块内存之上，所以其缓存对象也是物理地址连续的。
+- vmalloc分配内存，在内核中不需要连续的物理地址，而仅仅需要内核空间里连续的虚拟地址内存块。
+
+### struct vm_struct结构
+- vm_struct 是kernel space 除low memory中用于表示连续的虚拟地址空间，常用于vmalloc/vfree的操作
+    ```
+    struct vm_struct {
+        struct vm_struct    *next; //表示下一个vm，所有的vm组成一个链表
+        void                *addr; //虚拟地址
+        unsigned long        size; //大小
+        unsigned long        flags;
+        struct page         **pages; //vm所映射的page
+        unsigned int        nr_pages; //vm 所映射的page 的个数
+        phys_addr_t         phys_addr; //对应起始的物理地址和addr相对应
+        const void          *caller; //当前调用vm的指针
+    };
+    ```
+
+### vmalloc 调用过程
+1. void *vmalloc(unsigned long size) [/linux-4.0/mm/vmalloc.c]
+    ```
+    call: __vmalloc_node_flags(size, NUMA_NO_NODE, GFP_KERNEL | __GFP_HIGHMEM);
+    ```
+2. static inline void *__vmalloc_node_flags(unsigned long size, int node, gfp_t flags)
+    ```
+    call: __vmalloc_node(size, 1, flags, PAGE_KERNEL, node, __builtin_return_address(0));
+    __builtin_return_address(0)的含义是，得到当前函数返回地址，即此函数被别的函数调用，然后此函数执行完毕后，返回，所谓返回地址就是那时候的地址。
+    http://blog.chinaunix.net/uid-26817832-id-3351553.html
+    ```
+3. static void *__vmalloc_node(unsigned long size, unsigned long align, gfp_t gfp_mask, gprot_t prot, int node, const void *caller)
+    ```
+    call: __vmalloc_node_range(size, align, VMALLOC_START, VMALLOC_END, gfp_mask, prot, 0, node, caller)
+    ```
+4. void *__vmalloc_node_range(unsigned long size, unsigned long align, unsigned long start, unsigned long end, gfp_t gfp_mask, pgprot_t prot, unsigned long vm_flags, int node, const void *caller)
+    ```
+    call: __get_vm_area_node(size, align, VM_ALLOC | VM_UNINITIALIZED |	vm_flags, start, end, node, gfp_mask, caller)
+    ```
+    - static struct vm_struct *__get_vm_area_node(unsigned long size, unsigned long align, unsigned long flags, unsigned long start, unsigned long end, int node, gfp_t gfp_mask, const void *caller)
+        ```
+        call: alloc_vmap_area(size, align, start, end, node, gfp_mask)
+        ```
+5. static struct vmap_area *alloc_vmap_area(unsigned long size, unsigned long align,unsigned long vstart, unsigned long vend, int node, gfp_t gfp_mask)
+    - alloc_vmap_area在vmalloc整个空间中查找一块大小合适的并且没有人使用的空间，这段空间称为hole。
