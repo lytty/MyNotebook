@@ -657,21 +657,46 @@
 - kmalloc基于slab分配器，slab缓冲区建立在一个连续物理地址的大块内存之上，所以其缓存对象也是物理地址连续的。
 - vmalloc分配内存，在内核中不需要连续的物理地址，而仅仅需要内核空间里连续的虚拟地址内存块。
 
-### struct vm_struct结构
-- vm_struct 是kernel space 除low memory中用于表示连续的虚拟地址空间，常用于vmalloc/vfree的操作
+### vmalloc struct vm_struct结构
+- 内核在管理虚拟内存中的VMALLOC区域时, 内核必须跟踪哪些子区域被使用、哪些是空闲的. 为此定义了一个数据结构vm_struct。一个vm_struct代表一个vmalloc区域， 通过next形成一个链表。
+- struct vm_struct结构，vm_struct 是kernel space 除low memory中用于表示连续的虚拟地址空间，常用于vmalloc/vfree的操作
     ```
     struct vm_struct {
         struct vm_struct    *next; //表示下一个vm，所有的vm组成一个链表
-        void                *addr; //虚拟地址
-        unsigned long        size; //大小
+        void                *addr; //映射的首地址，虚拟地址
+        unsigned long        size; //映射地址区间的大小
         unsigned long        flags;
-        struct page         **pages; //vm所映射的page
-        unsigned int        nr_pages; //vm 所映射的page 的个数
-        phys_addr_t         phys_addr; //对应起始的物理地址和addr相对应
-        const void          *caller; //当前调用vm的指针
+        struct page         **pages; //一组指针，这些指针描述映射到这个区间里面的一个个真实的物理页对应的page指针
+        unsigned int        nr_pages; //表示该地址区间映射了多少物理页
+        phys_addr_t         phys_addr; //仅当用ioremap映射了由物理地址描述的物理内存区域时才需要，该信息保存在phys_addr中
+        const void          *caller; //指向调用__vmalloc_node_flags被调用的地址
+    };
+
+    flags的取值如下：
+    /* bits in flags of vmalloc's vm_struct below */
+    #define VM_IOREMAP        0x00000001    /* ioremap() and friends */
+    #define VM_ALLOC        0x00000002    /* vmalloc() */
+    #define VM_MAP            0x00000004    /* vmap()ed pages */
+    #define VM_USERMAP        0x00000008    /* suitable for remap_vmalloc_range */
+    #define VM_VPAGES        0x00000010    /* buffer for pages was vmalloc'ed */
+    #define VM_UNINITIALIZED    0x00000020    /* vm_struct is not fully initialized */
+    #define VM_NO_GUARD        0x00000040      /* don't add guard page */
+    #define VM_KASAN        0x00000080      /* has allocated kasan shadow memory */
+    /* bits [20..32] reserved for arch specific ioremap internals */
+    ```
+- struct vmap_area
+    ```
+    struct vmap_area {
+        unsigned long va_start;       /*malloc区的起始地址*/
+        unsigned long va_end;         /*malloc区的结束地址*/
+        unsigned long flags;          /*类型标识*/
+        struct rb_node rb_node;	   /* address sorted rbtree */
+        struct list_head list;		   /* address sorted list */
+        struct list_head purge_list; /* "lazy purge" list */
+        void *private;                /*指向配对的vm_struct*/
+        struct rcu_head rcu_head;
     };
     ```
-
 ### vmalloc 调用过程
 1. void *vmalloc(unsigned long size) [/linux-4.0/mm/vmalloc.c]
     ```

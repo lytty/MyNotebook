@@ -332,3 +332,7 @@
     ```
 - https://www.cnblogs.com/manong--/p/8012324.html
 ---
+
+33. windows10 启动opengrok 
+- java -Xmx524m -jar C:\opengrok\lib\opengrok.jar -W "C:\opengrok\data\configuration.xml" -c C:\ctags\ctags.exe -P -S -v -s "C:\opengrok\source" -d "C:\opengrok\data"
+- 启动tomcat bin中的startup.bat
