@@ -336,3 +336,8 @@
 33. windows10 启动opengrok 
 - java -Xmx524m -jar C:\opengrok\lib\opengrok.jar -W "C:\opengrok\data\configuration.xml" -c C:\ctags\ctags.exe -P -S -v -s "C:\opengrok\source" -d "C:\opengrok\data"
 - 启动tomcat bin中的startup.bat
+
+34. ubuntu 启动opengrok
+- /opt/tomcat8/bin/shutdown.sh && /opt/tomcat8/bin/startup.sh
+- opengrok-indexer -j /usr/lib/jvm/java-1.8.0-openjdk-amd64/bin/java -J=-Djava.util.logging.config.file=/var/opengrok/logging.properties -a /opt/opengrok/lib/opengrok.jar --  -s /index/src -d /opt/opengrok/database/data -H -P -S -G -W /opt/opengrok/etc/configuration.xml -U http://localhost:8080/source
+- ubuntu配置opengrok： https://luomuxiaoxiao.com/?p=56
