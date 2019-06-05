@@ -741,7 +741,7 @@
         /* linked list of VM areas per task, sorted by address */
         struct vm_area_struct *vm_next, *vm_prev; /*进程的VMA都连接成一个链表*/
 
-        struct rb_node vm_rb; /*VMA作为一个节点加入红黑树中，每个进程的struct mm_struct数据结构中都有这样一个红黑树 mm->mm_rb*/
+        struct rb_node vm_rb; /*VMA作为一个节点加入红黑树中，每个进程的struct mm_struct数据结构中都有这样一个红黑树 mm->mm_rb，红黑树的引入是为了提高查找特定VMA的速度。*/
 
         /*
          * Largest free memory gap in bytes to the left of this VMA.
@@ -800,3 +800,10 @@ struct mm_struct {
 }
 每个VMA都要连接到mm_struct中的链表和红黑树中，以方便查找。VMA按照起始地址以递增的方式插入mm_struct->mmap链表中，当进程拥有大量的VMA时，扫描链表和查找特定的VMA是非常低效的操作，所以内核中通常要靠红黑树来协助，以便提高查找速度。
 ```
+- rb_entry(node,type,member)返回该节点对应的数据类型，即该节点下包含member成员的type的数据类型。
+- vmachche_update(unsigned long addr, struct vm_area_struct *newvma), 将newvma添加到vmacache[VMACACHE_SIZE]数组中，vmacache[VMACACHE_SIZE]数组存放最近访问过的VMA，addr用于计算vmacache的哈希值。
+
+## malloc
+- malloc()函数是C函数库封装的一个核心函数，C函数库会做一些处理后调用Linux内核系统去调用brk。
+- 32位Linux内核中，每个用户进程拥有3GB的虚拟空间。用户进程的可执行文件由代码段和数据段组成，数据段包括所有的静态分配的数据空间，例如全局变量和静态局部变量等。这些空间在可执行文件装载时，内核就为其分配好这些空间，包括虚拟地址和物理页面，并建立好二者的映射关系。用户进程的用户栈从3GB虚拟空间的顶部开始，由顶向下延伸，而brk分配的空间是从数据段的顶部end_data到用户栈的地步。<br />
+![avator](picture/用户进程内存空间布局.PNG)
