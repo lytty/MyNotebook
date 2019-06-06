@@ -807,3 +807,37 @@ struct mm_struct {
 - malloc()函数是C函数库封装的一个核心函数，C函数库会做一些处理后调用Linux内核系统去调用brk。
 - 32位Linux内核中，每个用户进程拥有3GB的虚拟空间。用户进程的可执行文件由代码段和数据段组成，数据段包括所有的静态分配的数据空间，例如全局变量和静态局部变量等。这些空间在可执行文件装载时，内核就为其分配好这些空间，包括虚拟地址和物理页面，并建立好二者的映射关系。用户进程的用户栈从3GB虚拟空间的顶部开始，由顶向下延伸，而brk分配的空间是从数据段的顶部end_data到用户栈的地步。<br />
 ![avator](picture/用户进程内存空间布局.PNG)
+
+## 反向映射RMAP
+- 反向映射的概念是在Linux2.5中开始提出的。
+
+### 父进程分配匿名页面
+- /linux-4.0/mm/memory.c
+    ```
+    static int do_anonymous_page(struct mm_struct *mm, struct vm_area_struct *vma,
+  		unsigned long address, pte_t *page_table, pmd_t *pmd,
+  		unsigned int flags)
+    ```
+- do_anonymous_page分配匿名页面时，调用RMAP反向映射系统的两个API接口来完成初始化：<br />
+    1. /linux-4.0/mm/rmap.c, anon_vma_prepare主要为进程地址空间VMA准备struct anon_vma数据结构和一些管理用的链表。
+        ```
+        int anon_vma_prepare(struct vm_area_struct *vma)
+        ```
+    2. /linux-4.0/mm/rmap.c,设置分配的页面（page）的标志位（PG_SwapBacked）、_mapcount引用计数、页面所在zone的匿名页面的计数，并设置该页面为匿名映射。
+        ```
+        void page_add_new_anon_rmap(struct page *page, struct vm_area_struct *vma, unsigned long address)
+        ```
+### 父进程创建子进程
+- 父进程通过fork系统调用创建子进程时，子进程会复制父进程的进程地址空间VMA数据结构的内容作为自己的进程地址空间，并且会复制父进程的pte页表项内容到子进程的页表中，实现父子进程共享页表。
+- 多个不同子进程的虚拟页面会同时映射到同一个物理页面。另外多个不相干的进程的虚拟页面也可以通过KSM机制映射到同一个物理页面中。
+- 为了实现RMAP反向映射系统，在子进程复制父进程的VMA时，需要添加hook钩子。
+---
+<br/>
+
+## 回收页面
+- 在Linux系统中，当内存有盈余时，内核会尽量地使用内存作为文件缓存（page cache），从而提高系统的性能。文件缓存页面会加入到文件类型的LRU链表中，当系统内存紧张时，文件缓存页面会被丢弃，或者被修改的文件缓存会被回写到存储设备中，与块设备同步之后便可释放出物理内存。
+- Linux系统会使用存储设备（磁盘）当作交换分区，内核将很少使用的内存换出到交换分区，以便释放出物理内存，这个机制称为页交换（swapping），这些处理机制统称为页面回收（page reclaim）。
+<br/>
+
+## LRU链表
+INT(POWER(POWER((自动计算成绩.D38/10000)*1.6,1)*POWER((自动计算成绩.D39/10000)*0.35,1)*POWER((自动计算成绩.D40/10000)*1,1),1/3)*1.5*1000*0.85)
