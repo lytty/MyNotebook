@@ -292,7 +292,7 @@
     360	/* Read-mostly fields */
     361
     362	/* zone watermarks, access with *_wmark_pages(zone) macros */
-    363	unsigned long watermark[NR_WMARK]; /*每个zone在系统启动时会计算出3个水位值，分别是WMARK_MIN、WMARK_LOW、WMARK_HIGH，这在页面分配器和kswapd页面回收中会用到。*/
+    363	unsigned long watermark[NR_WMARK]; /*每个zone在系统启动时会计算出3个水位值，分别是WMARK_MIN、WMARK_LOW、WMARK_HIGH，这在页面分配器和kswapd页面回收中会用到。水位值的计算是在__setup_per_zone_wmarks()函数中，通过min_free_kbytes和zone管理的页面数等参数计算得出。*/
     364
     365	unsigned long nr_reserved_highatomic;
     366
@@ -841,3 +841,59 @@ struct mm_struct {
 
 ## LRU链表
 
+## kswapd内核线程
+- Linux内核中有一个非常重要的内核线程kswapd，负责在内存不足的情况下回收页面。kswapd内核线程初始化时会为系统中每个NUMA内存节点创建一个名为“kswapd%d”的内核线程。
+- 每个node节点都有一个pg_data_t [define location: include/linux/mmzone.h]数据结构来描述物理内存的布局：
+    ```
+    typedef struct pglist_data {
+        struct zone node_zones[MAX_NR_ZONES];
+        struct zonelist node_zonelists[MAX_ZONELISTS];
+        int nr_zones;
+    #ifdef CONFIG_FLAT_NODE_MEM_MAP	/* means !SPARSEMEM */
+        struct page *node_mem_map;
+    #ifdef CONFIG_PAGE_EXTENSION
+        struct page_ext *node_page_ext;
+    #endif
+    #endif
+    #ifndef CONFIG_NO_BOOTMEM
+        struct bootmem_data *bdata;
+    #endif
+    #ifdef CONFIG_MEMORY_HOTPLUG
+        /*
+        * Must be held any time you expect node_start_pfn, node_present_pages
+        * or node_spanned_pages stay constant.  Holding this will also
+        * guarantee that any pfn_valid() stays that way.
+        *
+        * pgdat_resize_lock() and pgdat_resize_unlock() are provided to
+        * manipulate node_size_lock without checking for CONFIG_MEMORY_HOTPLUG.
+        *
+        * Nests above zone->lock and zone->span_seqlock
+        */
+        spinlock_t node_size_lock;
+    #endif
+        unsigned long node_start_pfn;
+        unsigned long node_present_pages; /* total number of physical pages */
+        unsigned long node_spanned_pages; /* total size of physical page
+                            range, including holes */
+        int node_id;
+        wait_queue_head_t kswapd_wait;
+        wait_queue_head_t pfmemalloc_wait;
+        struct task_struct *kswapd;	/* Protected by
+                        mem_hotplug_begin/end() */
+        int kswapd_max_order;
+        enum zone_type classzone_idx;
+    #ifdef CONFIG_NUMA_BALANCING
+        /* Lock serializing the migrate rate limiting window */
+        spinlock_t numabalancing_migrate_lock;
+
+        /* Rate limiting time interval */
+        unsigned long numabalancing_migrate_next_window;
+
+        /* Number of pages migrated during the rate limiting time interval */
+        unsigned long numabalancing_migrate_nr_pages;
+    #endif
+    } pg_data_t;
+    ```
+    - kswapd_wait是一个等待队列，每个pg_data_t数据结构都有这样一个等待队列，它是在free_area_init_core()函数中初始化的。
+    - kswapd_max_order、classzone_idx被作为参数由页面分配路径上的唤醒函数wakeup_kswapd()传递给kswapd内核线程。在分配内存路径上，如果在低水位（ALLOC_WMARK_LOW）的情况下无法成功分配内存，那么会通过wakeup_kswapd()函数唤醒kswapd内核线程来回收页面，以便释放一些内存。
+- balance_pgdat函数是回收页面的主函数
