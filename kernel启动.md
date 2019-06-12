@@ -26,3 +26,22 @@
 ### 2.1 内核解压
 - 通过启动加载项完成对软硬件的默认初始化任务后，最先执行的是arch/arm/boot/compressed/head.S的start标签中的代码。
     - 启动加载项必须提供5种功能：RAM初始化、串行端口初始化、查找机器类别、构建tagged list内核、将控制移交到内核镜像。
+- BSS系统域初始化——not_relocated标签
+    - 解压zImage这一压缩内核的准备工作有：初始化BSS区域、激活缓存以及设置动态内存区域，这些设置是解压内核时必不可少的事项。
+    - BSS初始化代码：arch/arm/boot/compressed/head.S的not_relocated标签处。
+- 激活缓存——cache_on标签
+    - arch/arm/boot/compressed/head.S的cache_on标签处
+- 页目录项初始化——__setup_mmu标签
+    - arch/arm/boot/compressed/head.S的__setup_mmu标签
+    - __setup_mmu标签在cache_on标签内调用，用于初始化解压内核所需的页目录项。特别是对内存的256MB区域设置cacheable、bufferable，这是因为解压内核时，使用缓存和写缓冲以提高解压性能。
+- 指令缓存激活及缓存策略适用——__common_mmu_cache_on标签
+    - arch/arm/boot/compressed/head.S的__common_mmu_cache_on标签
+    - __common_mmu_cache_on标签在cache_on标签内调用
+---
+### 2.2 从压缩的内核zImage还原内核映像
+- 压缩的内核zImage是通过gunzip执行解压：gunzip的内核源代码 arch/arm/boot/compressed/misc.c
+- 解压内核并避免覆写——wont_overwrite、decompress_kernel标签
+    - wont_overwrite标签在cache_on标签后执行。在完成对压缩内核zImage执行解压的所有准备工作后，内核会解压到ZRELADDR地址，利用decompress_kernel函数完成解压工作。
+    - decompress_kernel函数位置：arch/arm/boot/compressed/misc.c， 该函数是对压缩内核执行解压的实际子程序。
+- 调用已解压内核——call_kernel标签
+    
