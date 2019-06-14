@@ -6,7 +6,7 @@
 
 ### 1.1 内存管理概述
 
-- 内存空间分为3个层次：用户空间层、内核空间层、硬件层。![1560490995692](../picture/内存管理框图.png)
+- 内存空间分为3个层次：用户空间层、内核空间层、硬件层。![avator](../picture/内存管理框图.png)
   1. 用户空间层，可以理解为Linux内核内存管理为用户空间暴露的系统调用接口。
   2. 内核空间层，包含的模块相当丰富。用户空间和内核空间的接口是系统调用，因此内核空间层首先需要处理这些内存管理相关的系统调用，例如sys_brk、sys_mmap、sys_madvise等。接下来就包括VMA管理、缺页中断管理、匿名页面、page cache、页面回收、反向映射、slab分配器、页面管理等模块了。
   3. 硬件层，包括处理器的MMU、TLB、cache部件，以及板载的物理内存，例如LPDDR或者DDR。
@@ -22,7 +22,7 @@
 
 - 内核内存定义：
 
-  1. sprdroid9.0_trunk/kernel4.14/arch/arm/boot/dts/vexpress-v2p-ca9.dts![1560498518227](/home/haibin.xu/haibin/picture/arm32内核内存定义.png)
+  1. sprdroid9.0_trunk/kernel4.14/arch/arm/boot/dts/vexpress-v2p-ca9.dts![1560498518227](../picture/arm32内核内存定义.png)
   2. sprdroid9.0_trunk/kernel4.14/arch/arm64/boot/dts/sprd/sp9832e-1h10.dts ![1560495908784](../picture/arm64内核内存定义.png)
 
   3. 以上分别为arm32、arm64内核内存定义，vexpress-v2p-ca9.dts文件中定义了内核内存的起始地址为0x6000 0000， 大小为0x4000 0000，即1G大小的的内存空间。sp9832e-1h10.dts文件中定义了内存的起始地址为0x0000 0000 8000 0000，大小为0x0000 0000 8000 0000，即2G大小的内核内存空间，注意，此处的起始地址为物理地址。
