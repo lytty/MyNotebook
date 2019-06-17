@@ -82,6 +82,7 @@
   如上，属性# address-cells的值为1，它代表以“/”根节点为parent的子节点中，reg属性中存在一个address值；#size-cells的值为1，它代表以“/” 根节点为parent的子节点中，reg属性中存在一个size值。即父节点的#address-cells和#size-cells的含义如下：
   
   	1.  #address-cells，用来描述子节点“reg”属性的地址表中用来描述首地址的cell数量；
+  
    	2.  #size-cells，用来描述子节点“reg”属性的地址表中用来描述地址长度的cell数量；
 
 ### 2.3 典型节点描述
@@ -188,7 +189,7 @@
 
 - 设备树结构块是一个线性化的结构体，是设备树的主体，以节点的形式保存了主板上的设备信息。
 
-- 在结构块中，以宏OF_DT_BEGIN_NODE标志一个节点的开始，以宏OF_DT_END_NODE标识一个节点的结束，整个结构块以宏OF_DT_END (0x00000009)结束。在[linux-5.1](http://localhost:8080/source/xref/Linux-kernel/linux-5.1/)/[arch](http://localhost:8080/source/xref/Linux-kernel/linux-5.1/arch/)/[powerpc](http://localhost:8080/source/xref/Linux-kernel/linux-5.1/arch/powerpc/)/[include](http://localhost:8080/source/xref/Linux-kernel/linux-5.1/arch/powerpc/include/)/[asm](http://localhost:8080/source/xref/Linux-kernel/linux-5.1/arch/powerpc/include/asm/)/[prom.h](http://localhost:8080/source/xref/Linux-kernel/linux-5.1/arch/powerpc/include/asm/prom.h)中有相关定义，我们把这些宏称之为token。
+- 在结构块中，以宏OF_DT_BEGIN_NODE标志一个节点的开始，以宏OF_DT_END_NODE标识一个节点的结束，整个结构块以宏OF_DT_END (0x00000009)结束。在linux-5.1/arch/powerpc/include/asm/prom.h中有相关定义，我们把这些宏称之为token。
 
   ```c
   29  #define OF_DT_BEGIN_NODE	0x1		/* Start of node, full name */
@@ -222,6 +223,8 @@
 
 - 这个区域包括了若干的reserve memory描述符。每个reserve memory描述符是由address和size组成。其中address和size都是用U64来描述。
 - 有些系统，我们也许会保留一些memory有特殊用途（例如DTB或者initrd image），或者在有些DSP+ARM的SOC platform上，有些memory被保留用于ARM和DSP进行信息交互。这些保留内存不会进入内存管理系统。
+
+
 
 ## 4. 解析DTB的函数及相关数据结构
 
