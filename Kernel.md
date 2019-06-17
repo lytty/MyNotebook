@@ -94,11 +94,11 @@
     - Shared Memory Architecture: 所有处理器共享相同的内存地址空间。这种体系结构主要解决的问题是关于cache一致性, 其又分以下两种：
     ![avatar](picture/shared_memory_architecture.png)
         - UMA（Uniform Memory Access）：所有处理器都一样，并且对所有的内存区域有相同的访问时间
-        ![avatar](picture/uma.png)
-        ![avatar](picture/uma1.png)
+          ![avatar](picture/uma.png)
+          ![avatar](picture/uma1.png)
         - NUMA（Non-Uniform Memory Access）: 所有处理器都一样，但是每个处理器拥有自己的本地内存。与Distributed Memory Architecture不同的是，不同处理器会存在内存地址映射，并且访问本地内存和其它处理器内存的时间会有不同。
-        ![avatar](picture/numa.png)
-        ![avatar](picture/numa1.png)
+          ![avatar](picture/numa.png)
+          ![avatar](picture/numa1.png)
     - Distributed Memory Architecture: 每个处理器拥有自己的本地内存，不存在跨处理器内存地址映射问题。因此也没有cache一致性问题。
     ![avatar](picture/distributed_memory_architecture.png)
 2. arm linux 属于Shared Memory Architecture -> UMA
@@ -199,6 +199,7 @@
         - 摘自： https://blog.csdn.net/sunlei0625/article/details/79276490， 对mem_map这个知识点讲的很透彻
     - bdata：系统中内存的每个节点都有一个bootmem_data数据结构。它包含引导内存分配器为节点分配内存所需的信息
     - node_start_pfn：节点第一个页面帧逻辑编号，所有页帧是依次编号的，每个页帧的号码都是全局唯一的。在UMA中总是0
+        
         - 页帧号： 参考http://book.51cto.com/art/201502/465673.htm
     - node_present_pages：该节点下包含的物理页面的总数
     - node_spanned_pages：物理页面范围的总大小，包括洞
@@ -277,7 +278,7 @@
     arm_lowmem_limit ~ VMALLOC_START;  内核空间，高端地址空间， 线性映射， VMALLOC_OFFSET区间
 
     内存ram布局参考《空间划分》章节
-    ``` 
+    ```
     5. sprdroidq_trunk/kernel4.14/arch/arm/mm/mmu.c
     ```
     1429static void __init map_lowmem(void) "主要创建低端地址映射"
@@ -466,6 +467,7 @@
             140 static void __init zone_sizes_init(unsigned long min, unsigned long max_low, 141	unsigned long max_high)
         ```
 - zonelist数据结构
+    
     1. 系统中会有一个zonelist的数据结构，伙伴系统分配器会从zonelist开始分配内存，zonelist有一个zoneref数组，数组里有一个成员会指向zone数据结构。zoneref数组的第一个成员指向的zone是页面分配器的第一个候选者，其它成员则是第一个候选者分配失败之后才考虑，优先级逐渐降低。
 ---
 
@@ -650,6 +652,7 @@
     void kmem_cache_free(struct kmem_cache *, void *)
     ```
 - kmalloc函数接口大量使用了slab机制
+    
     - kmalloc()函数用于创建通用的缓存，类似于用户空间中C标准库malloc()函数
 ---
 
@@ -722,6 +725,7 @@
         call: alloc_vmap_area(size, align, start, end, node, gfp_mask)
         ```
 5. static struct vmap_area *alloc_vmap_area(unsigned long size, unsigned long align,unsigned long vstart, unsigned long vend, int node, gfp_t gfp_mask)
+    
     - alloc_vmap_area在vmalloc整个空间中查找一块大小合适的并且没有人使用的空间，这段空间称为hole。
 ---
 
@@ -816,8 +820,8 @@ struct mm_struct {
 - /linux-4.0/mm/memory.c
     ```
     static int do_anonymous_page(struct mm_struct *mm, struct vm_area_struct *vma,
-  		unsigned long address, pte_t *page_table, pmd_t *pmd,
-  		unsigned int flags)
+    		unsigned long address, pte_t *page_table, pmd_t *pmd,
+    		unsigned int flags)
     ```
 - do_anonymous_page分配匿名页面时，调用RMAP反向映射系统的两个API接口来完成初始化：<br />
     1. /linux-4.0/mm/rmap.c, anon_vma_prepare主要为进程地址空间VMA准备struct anon_vma数据结构和一些管理用的链表。
@@ -844,8 +848,9 @@ struct mm_struct {
 
 ## kswapd内核线程
 - Linux内核中有一个非常重要的内核线程kswapd，负责在内存不足的情况下回收页面。kswapd内核线程初始化时会为系统中每个NUMA内存节点创建一个名为“kswapd%d”的内核线程。
+
 - 每个node节点都有一个pg_data_t [define location: include/linux/mmzone.h]数据结构来描述物理内存的布局：
-    ```
+    ```c
     typedef struct pglist_data {
         struct zone node_zones[MAX_NR_ZONES];
         struct zonelist node_zonelists[MAX_ZONELISTS];
@@ -897,4 +902,12 @@ struct mm_struct {
     ```
     - kswapd_wait是一个等待队列，每个pg_data_t数据结构都有这样一个等待队列，它是在free_area_init_core()函数中初始化的。
     - kswapd_max_order、classzone_idx被作为参数由页面分配路径上的唤醒函数wakeup_kswapd()传递给kswapd内核线程。在分配内存路径上，如果在低水位（ALLOC_WMARK_LOW）的情况下无法成功分配内存，那么会通过wakeup_kswapd()函数唤醒kswapd内核线程来回收页面，以便释放一些内存。
+    
 - balance_pgdat函数是回收页面的主函数
+
+## 内存归整（memory compaction）
+
+- 伙伴系统以页为单位来管理内存，内存碎片也是基于页面的，即由大量离散且不连续的页面导致的。内存碎片不是好事情，有些情况下物理设备需要大段的连续的物理内存，如果内核无法满足，则会发生内核panic。内存归整就是为了解决内核碎片化而出现的一个功能。
+- 内核中去碎片化的基本原理是按照页的可移动性将页面分组。迁移内核本身使用的物理内存的实现难度和复杂度都很大，因此目前的内核是不迁移本身使用的物理页面。对于用户进程使用的页面，实际上通过用户页表的映射的映射来访问。用户页表可以移动和修改映射关系，不会影响用户进程，因此内存归整是基于页面迁移来实现的。
+- 内存归整的一个重要的应用场景是在分配大块内存时（order > 1），在WMARK_LOW低水位情况下分配失败，唤醒kswapd内核线程后依然无法分配出内存，这时调用__alloc_pages_direct_compact()来压缩内存尝试分配出所需要的内存。
+- 
