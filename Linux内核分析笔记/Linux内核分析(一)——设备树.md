@@ -8,9 +8,9 @@
 
 ## 1. Linux 内核中设备树的基本概念及作用
 
-- Linux引入FDT目的很明确--降低代码冗余。过去在内核源码中，存在大量对板级细节信息描述的代码。这些代码充斥在/arch/arm/plat-xxx和/arch/arm/mach-xxx目录，对内核而言这些platform设备、resource、i2c_board_info、spi_board_info以及各种硬件的platform_data绝大多数纯属垃圾冗余代码。为了解决这一问题，ARM内核版本3.x之后引入了原先在Power PC等其他体系架构已经使用的Flattened Device Tree。即Linux内核中引入的设备树，指的是Flattened Device Tree，简称FDT，扁平设备树，后续我们Linux内核中所说的设备树，都是扁平设备树。
+- Linux引入FDT目的很明确--降低代码冗余。过去在内核源码中，存在大量对板级细节信息描述的代码。这些代码充斥在/arch/arm/plat-xxx和/arch/arm/mach-xxx目录，对内核而言这些platform设备、resource、i2c_board_info、spi_board_info以及各种硬件的platform_data绝大多数纯属垃圾冗余代码。为了解决这一问题，ARM内核版本3.x之后引入了原先在Power PC等其他体系架构已经使用的Flattened Device Tree。即Linux内核中引入的设备树，Flattened Device Tree，简称FDT，扁平设备树，后续我们Linux内核中所说的设备树，都是扁平设备树。
 
-- “A data structure by which bootloaders pass hardware layout to Linux in a device-independent manner, simplifying hardware probing.”开源文档中对设备树的描述是，一种描述硬件资源的[数据结构](http://lib.csdn.net/base/datastructure)，它通过bootloader将硬件资源传给内核，使得内核和硬件资源描述相对独立。
+- 简而言之，设备树就是描述单板资源以及设备的一种文本文件。“A data structure by which bootloaders pass hardware layout to Linux in a device-independent manner, simplifying hardware probing.”开源文档中对设备树的描述是，一种描述硬件资源的[数据结构](http://lib.csdn.net/base/datastructure)，它通过bootloader将硬件资源传给内核，使得内核和硬件资源描述相对独立。
 
 - Device Tree可以描述的信息包括CPU的数量和类别、内存基地址和大小、总线和桥、外设连接、中断控制器和中断使用情况、GPIO控制器和GPIO使用情况、Clock控制器和Clock使用情况。
 
@@ -34,18 +34,21 @@
 
   2. 由于一个SoC可能对应多个machine（一个SoC可以对应多个产品和电路板），势必这些.dts文件需包含许多共同的部分，Linux内核为了简化，把SoC公用的部分或者多个machine共同的部分一般提炼为.dtsi，类似于C语言的头文件。其他的machine对应的.dts就include这个.dtsi。当然，和C语言的头文件类似，.dtsi也可以include其他的.dtsi，譬如几乎所有的ARM SoC的.dtsi都引用了skeleton.dtsi，即#include"skeleton.dtsi“ 或者 /include/ "skeleton.dtsi"。
 
-  3. DTC为编译工具，它可以将.dts文件编译成.dtb文件。DTC的源码位于内核的scripts/dtc目录，内核选中CONFIG_OF，编译内核的时候，主机可执行程序DTC就会被编译出来。即scripts/dtc/Makefile中
+  3. uboot和linux不能识别dts文件，只能识别二进制文件，所以需要将.dts文件编译成.dtb文件。dtb文件是一种可以被kernel和uboot识别的二进制文件。
 
+     ​		把.dts文件编译成.dtb文件的工具就是DTC。DTC的源码位于内核的scripts/dtc目录，内核选中CONFIG_OF，编译内核的时候，主机可执行程序DTC就会被编译出来。即scripts/dtc/Makefile中
+  
      ``````makefile
      hostprogs-y := dtc
-     always := $(hostprogs-y)
+      always := $(hostprogs-y)
      ``````
 
-     在内核的arch/arm/boot/dts/Makefile中，若选中某种SOC，则与其对应相关的所有dtb文件都将编译出来。在linux下，make dtbs可单独编译dtb。
+     ​		在内核的arch/arm/boot/dts/Makefile中，若选中某种SOC，则与其对应相关的所有dtb文件都将编译出来。在linux下，make dtbs可单独编译dtb。
 
-  4. DTC编译.dts生成的二进制文件（.dtb），bootloader在引导内核时，会预先读取.dtb到内存，进而由内核解析。
-
-  5. Bootloader需要将设备树在内存中的地址传给内核。在ARM中通过bootm或bootz命令来进行传递。bootm [kernel_addr] [initrd_address] [dtb_address]，其中kernel_addr为内核镜像的地址，initrd为initrd的地址，dtb_address为dtb所在的地址。若initrd_address为空，则用“-”来代替。
+     ​		在Linux的scripts/dtc目录下除了提供dtc工具外，也可以自己安装dtc工具，linux下执行：sudo apt-get install device-tree-compiler安装dtc工具。dtc工具的使用方法是：dtc -I dts -O dtb -o xxx.dtb xxx.dts，即可生成dts文件对应的dtb文件了。 当然了，dtc -I dtb -O dts -o xxx.dts xxx.dtb反过来即可生成dts文件。其中还提供了一个fdtdump的工具，可以dump dtb文件，方便查看信息。
+  
+     
+  
 
 ### 2.2 设备树中DTS（DTSI）文件的基本语法
 
@@ -81,7 +84,7 @@
   
   如上，属性# address-cells的值为1，它代表以“/”根节点为parent的子节点中，reg属性中存在一个address值；#size-cells的值为1，它代表以“/” 根节点为parent的子节点中，reg属性中存在一个size值。即父节点的#address-cells和#size-cells的含义如下：
   
-  	1.  #address-cells，用来描述子节点“reg”属性的地址表中用来描述首地址的cell数量；
+  1. #address-cells，用来描述子节点“reg”属性的地址表中用来描述首地址的cell数量；
   
    	2.  #size-cells，用来描述子节点“reg”属性的地址表中用来描述地址长度的cell数量；
 
@@ -159,46 +162,88 @@
 
      注：对于相同名称的节点，dtc会根据定义的先后顺序进行合并，其相同属性，取后定义的那个。
 
-## 3. DTB相关结构   
+## 3. Device Tree文件结构 
 
-- DTB由三部分组成：头（Header）、结构块（device-tree structure）、字符串块（string block），其布局结构如下：![1560749945068](/home/haibin.xu/haibin/picture/dtb布局结构.png)
+- DTB由三部分组成：头（Header）、结构块（device-tree structure）、字符串块（string block），其布局结构如下：![560927134575](../picture/dtb文件结构.png)
+- 通过以上分析，可以得到Device Tree文件结构如下图所示。dtb文件的头部首先存放的是fdt_header的结构体信息，接着是填充区域，填充大小为off_dt_struct – sizeof(struct fdt_header)，填充的值为0。接着就是struct fdt_property结构体的相关信息。最后是dt_string部分。![1560931064859](/home/haibin.xu/haibin/picture/dtb文件结构-2.png)
 
-### 3.1 Header
+### 3.1 Device Tree文件头信息
 
-相关定义在linux-5.1/arch/powerpc/include/asm/prom.h文件中：
+- 我们使用上文提到的fdtdump工具，以vexpress-v2p-ca5s.dtb文件为例，Linux终端执行fdtdump -sd  vexpress-v2p-ca5s.dtb > vexpress-v2p-ca5s.txt，vexpress-v2p-ca5s.txt部分内容如下：
 
-```c
-52  struct boot_param_header {
-53  	__be32	magic;			/* magic word OF_DT_HEADER 设备树幻数，固定为0xd00dfeed */
-54  	__be32	totalsize;		/* total size of DT block 整个设备树的大小*/
-55  	__be32	off_dt_struct;		/* offset to structure 保存结构块在整个设备树中的偏移*/
-56  	__be32	off_dt_strings;		/* offset to strings 保存字符串块在整个设备树中的偏移*/
-57  	__be32	off_mem_rsvmap;		/* offset to memory reserve map 保留内存区，该区保留了不能被内核动态分配的内存空间*/
-58  	__be32	version;		/* format version 设备树版本*/
-59  	__be32	last_comp_version;	/* last compatible version 向下兼容版本号*/
-60  	/* version 2 fields below */
-61  	__be32	boot_cpuid_phys;	/* Physical CPU id we're booting on 为在多核处理器中用于启动的主CPU的物理id*/
-62  	/* version 3 fields below */
-63  	__be32	dt_strings_size;	/* size of the DT strings block 字符串块大小*/
-64  	/* version 17 fields below */
-65  	__be32	dt_struct_size;		/* size of the DT structure block 结构块大小*/
-66  };
-```
+  ```
+  vexpress-v2p-ca5s.dtb: found fdt at offset 0
+  /dts-v1/;
+  // magic:		0xd00dfeed
+  // totalsize:		0x313b (12603)
+  // off_dt_struct:	0x38
+  // off_dt_strings:	0x2dac
+  // off_mem_rsvmap:	0x28
+  // version:		17
+  // last_comp_version:	16
+  // boot_cpuid_phys:	0x0
+  // size_dt_strings:	0x38f
+  // size_dt_struct:	0x2d74
+  ```
 
-### 3.2 device-tree structure
+- 以上信息便是Device Tree头信息，存储在dtb文件的开头部分，在Linux内核中使用`struct fdt_header`结构体描述，该结构体定义在linux-5.1/scripts/dtc/libfdt/fdt.h文件中。（注：好多设备树相关文章中也有使用`struct boot_param_header`结构体（定义在arch/powerpc/include/asm/prom.h）的，两个结构体内容一样）：
 
-- 设备树结构块是一个线性化的结构体，是设备树的主体，以节点的形式保存了主板上的设备信息。
+  ```
+    struct fdt_header {
+    		fdt32_t	magic;				/* 设备树幻数，固定为0xd00dfeed */
+    		fdt32_t	totalsize;			/* 整个设备树的大小*/
+        	fdt32_t	off_dt_struct;		/* 保存结构块在整个设备树中的偏移*/
+   		fdt32_t	off_dt_strings;		/* 保存字符串块在整个设备树中的偏移*/
+  		fdt32_t	off_mem_rsvmap;		/* 保留内存区，该区保留了不能被内核动态分配的内存空间*/
+         	fdt32_t	version;			/* 设备树版本*/
+          fdt32_t	last_comp_version;	/* 向下兼容版本号*/
+    		/* version 2 fields below */
+    		fdt32_t	boot_cpuid_phys;	/* 为在多核处理器中用于启动的主CPU的物理id*/
+    		/* version 3 fields below */
+    		fdt32_t	dt_strings_size;	/* 字符串块大小*/
+    		/* version 17 fields below */
+    		fdt32_t	dt_struct_size;		/* 结构块大小*/
+    };
+  ```
 
-- 在结构块中，以宏OF_DT_BEGIN_NODE标志一个节点的开始，以宏OF_DT_END_NODE标识一个节点的结束，整个结构块以宏OF_DT_END (0x00000009)结束。在linux-5.1/arch/powerpc/include/asm/prom.h中有相关定义，我们把这些宏称之为token。
+  fdtdump工具的输出信息即是以上结构中每一个成员的值，struct fdt_header结构体包含了Device Tree的私有信息。例如: fdt_header.magic是fdt的魔数,固定值为0xd00dfeed，fdt_header.totalsize是fdt文件的大小。使用二进制工具打开vexpress-v2p-ca5s.dtb验证。vexpress-v2p-ca5s.dtb二进制文件头信息如下图所示。从下图中可以得到Device Tree的文件是以大端模式储存。并且，头部信息和fdtdump的输出信息一致。
+
+  ```
+    1 0000000: d0 0d fe ed 00 00 31 3b 00 00 00 38 00 00 2d ac  ......1;...8..-.
+    2 0000010: 00 00 00 28 00 00 00 11 00 00 00 10 00 00 00 00  ...(............
+    3 0000020: 00 00 03 8f 00 00 2d 74 00 00 00 00 00 00 00 00  ......-t........
+    4 0000030: 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 00  ................
+    5 0000040: 00 00 00 03 00 00 00 09 00 00 00 00 56 32 50 2d  ............V2P-
+    6 0000050: 43 41 35 73 00 00 00 00 00 00 00 03 00 00 00 04  CA5s............
+    7 0000060: 00 00 00 06 00 00 02 25 00 00 00 03 00 00 00 04  .......%........
+    8 0000070: 00 00 00 0e 00 00 00 0f 00 00 00 03 00 00 00 23  ...............#
+    9 0000080: 00 00 00 20 61 72 6d 2c 76 65 78 70 72 65 73 73  ... arm,vexpress
+  ```
+
+  
+
+### 3.2 device-tree structure——节点
+
+- 设备树结构块是一个线性化的结构体，是设备树的主体，以<u>节点的形式保存了主板上的设备信息(我的理解：设备树结构体描述了dts文件中的节点信息。)</u>。
+
+- 节点（node）信息使用struct fdt_node_header结构体描述。各个结构体信息如下: `/scripts/dtc/libfdt/fdt.h`
 
   ```c
-  29  #define OF_DT_BEGIN_NODE	0x1		/* Start of node, full name */
-  30  #define OF_DT_END_NODE		0x2		/* End node */
-  31  #define OF_DT_PROP			0x3		/* Property: name off, size, content */
-  33  #define OF_DT_NOP			0x4		/* nop */
-  34  #define OF_DT_END			0x9
-  35  
-  36  #define OF_DT_VERSION		0x10
+  81struct fdt_node_header {
+  82	fdt32_t tag;
+  83	char name[0];
+  84};
+  85
+  ```
+
+  ​		struct fdt_node_header描述节点信息，tag是标识node的起始结束等信息的标志位，name指向node名称的首地址。tag的取值如下，我们一般把这些宏称之为token。：  
+
+  ```c
+  #define FDT_BEGIN_NODE	0x1		/* Start of node, full name */
+  #define FDT_END_NODE	0x2		/* End node */
+  #define FDT_PROP		0x3		/* Property: name off, size, content */
+  #define FDT_NOP			0x4		/* nop */
+  #define FDT_END			0x9
   ```
 
   1. FDT_BEGIN_NODE (0x00000001)。该token描述了一个node的开始位置，紧挨着该token的就是node name（包括unit address）。
@@ -207,26 +252,96 @@
   4. FDT_NOP (0x00000004)。
   5. FDT_END (0x00000009)。该token标识了一个DTB的结束位置。
 
-- 一个节点的结构如下：
-  1. 节点开始标志：一般为OF_DT_BEGIN_NODE（0x00000001）。
+- 节点属性信息使用struct fdt_property结构体描述。
+
+  ```c
+  86struct fdt_property {
+  87	fdt32_t tag;
+  88	fdt32_t len;
+  89	fdt32_t nameoff;
+  90	char data[0];
+  91};
+  ```
+
+  1. 描述属性采用struct fdt_property描述，tag标识是属性，取值为FDT_PROP；
+  2. len为属性值的长度（包括‘\0’，单位：字节）；
+  3. nameoff为属性名称存储位置相对于off_dt_strings的偏移地址。
+
+- 设备树节点的结构如下：![1560933536225](../picture/dt_struct结构图.png)
+  
+  一个节点的结构如下：
+  
+  1. 节点开始标志：一般为FDT_BEGIN_NODE（0x00000001）。
   2. 节点路径或者节点的单元名(version<3以节点路径表示，version>=0x10以节点单元名表示)。
   3. 填充字段（对齐到四字节）。
-  4. 节点属性。每个属性以宏OF_DT_PROP(0x00000003)开始，后面依次为属性值的字节长度(4字节)、属性名称在字符串块中的偏移量(4字节)、属性值和填充（对齐到四字节）。
+  4. 节点属性。每个属性以宏FDT_PROP(0x00000003)开始，后面依次为属性值的字节长度(4字节)、属性名称在字符串块中的偏移量(4字节)、属性值和填充（对齐到四字节）。
   5. 如果存在子节点，则定义子节点。
-  6. 节点结束标志OF_DT_END_NODE(0x00000002)。
-
-### 3.3 字符串块
-
-- 通过节点的定义知道节点都有若干属性，而不同的节点的属性又有大量相同的属性名称，因此将这些属性名称提取出一张表，当节点需要应用某个属性名称时，直接在属性名字段保存该属性名称在字符串块中的偏移量。
-
-### 3.4 memory reserve map
-
-- 这个区域包括了若干的reserve memory描述符。每个reserve memory描述符是由address和size组成。其中address和size都是用U64来描述。
-- 有些系统，我们也许会保留一些memory有特殊用途（例如DTB或者initrd image），或者在有些DSP+ARM的SOC platform上，有些memory被保留用于ARM和DSP进行信息交互。这些保留内存不会进入内存管理系统。
+  6. 节点结束标志FDT_END_NODE(0x00000002)。
 
 
 
-## 4. 解析DTB的函数及相关数据结构
+## 4. kernel解析Device Tree
+
+- Device Tree文件结构描述就以上struct fdt_header、struct fdt_node_header及struct fdt_property三个结构体描述。kernel会根据Device Tree的结构解析出kernel能够使用的struct property结构体。<u>kernel根据Device Tree中所有的属性解析出数据填充struct property结构体</u>。struct property结构体描述如下:
+
+  ```c
+  struct property {
+      char *name;		/*属性名*/
+      int	length;		/*属性值长度*/
+      void *value;	/*属性值*/
+      struct property *next;	/*指向下一个属性值*/
+      unsigned long _flags;	/*标志*/
+      unsigned int unique_id;
+  }
+  ```
+
+  ​		kernel根据Device Tree的文件结构信息转换成struct property结构体，并将同一个node节点下面的所有属性通过property.next指针进行链接，形成一个单链表。
+
+- kernel解析Device Tree的函数调用过程如下图所示: ![1560934402504](../picture/内核解析设备树函数调用流程图.png)
+
+  1. kernel的C语言阶段的入口函数是init/main.c/start_kernel()函数，在early_init_dt_scan_nodes()中会做以下三件事：
+     - 扫描/chosen或者/chose@0节点下面的bootargs属性值到boot_command_line，此外，还处理initrd相关的property，并保存在initrd_start和initrd_end这两个全局变量中；
+     - 扫描根节点下面，获取{size,address}-cells信息，并保存在dt_root_size_cells和dt_root_addr_cells全局变量中；   
+     - 扫描具有device_type = “memory”属性的/memory或者/memory@0节点下面的reg属性值，并把相关信息保存在meminfo中，全局变量meminfo保存了系统内存相关的信息。 
+
+  2. Device Tree中的每一个node节点经过kernel处理都会生成一个struct device_node的结构体，struct 
+     device_node最终一般会被挂接到具体的struct device结构体。struct device_node结构体描述如下：kernel4.14/include/linux/of.h
+
+     ```c
+     49struct device_node {
+     50	const char *name;	/*node的名称，取最后一次“/”和“@”之间子串*/
+     51	const char *type;	/*device_type的属性名称，没有为<NULL>*/
+     52	phandle phandle;	/*phandle属性值*/
+     53	const char *full_name;	/*指向该结构体结束的位置，存放node的路径全名，例如：/chosen*/
+     54	struct fwnode_handle fwnode;
+     55
+     56	struct	property *properties;	/*指向该节点下的第一个属性，其他属性与该属性链表相接*/
+     57	struct	property *deadprops;	/* removed properties */
+     58	struct	device_node *parent;	/*指向父节点*/
+     59	struct	device_node *child;		/*指向子节点*/
+     60	struct	device_node *sibling;	/*姊妹节点，与自己同等级的node*/
+     61	struct	kobject kobj;			/* sysfs文件系统目录体现 */
+     62	unsigned long _flags;			/* 当前node状态标志位，见/include/linux/of.h line141-145 */
+     63	void	*data;
+     64#if defined(CONFIG_SPARC)
+     65	const char *path_component_name;
+     66	unsigned int unique_id;
+     67	struct of_irq_controller *irq_trans;
+     68#endif
+     69};
+     ...
+     141/* flag descriptions (need to be visible even when !CONFIG_OF) */
+     142#define OF_DYNAMIC	1 /* node and properties were allocated via kmalloc */
+     143#define OF_DETACHED	2 /* node has been detached from the device tree */
+     144#define OF_POPULATED	3 /* device already created for the node */
+     145#define OF_POPULATED_BUS	4 /* of_platform_populate recursed to children of this node */
+     ```
+
+     
+
+  3. 
+
+     
 
 ### 4.1 machine_desc结构
 
@@ -422,9 +537,9 @@ struct property {
    69ENDPROC(__vet_atags)
    ```
 
-	### 5.2 dtb解析
+### 5.2 dtb解析
 
-- 真正解析处理dbt的开始部分，是setup_arch->setup_machine_fdt。这部分的处理在第四部分的machine_desc中有提及。如下图为setup_machine_fdt的解析过程。                                ![1560771295823](../picture/setup_machine_fdt解析过程.png)
+- 真正解析处理dtb的开始部分，是setup_arch->setup_machine_fdt。这部分的处理在第四部分的machine_desc中有提及。如下图为setup_machine_fdt的解析过程。                                ![1560771295823](../picture/setup_machine_fdt解析过程.png)
   1. 解析chosen节点将对boot_command_line进行初始化。
   2. 解析根节点的{size，address}将对dt_root_size_cells，dt_root_addr_cells进行初始化。为之后解析memory等其他节点提供依据。
   3. 解析memory节点，将会把节点中描述的内存，加入memory的bank。为之后的内存初始化提供条件。

@@ -199,7 +199,7 @@
         - 摘自： https://blog.csdn.net/sunlei0625/article/details/79276490， 对mem_map这个知识点讲的很透彻
     - bdata：系统中内存的每个节点都有一个bootmem_data数据结构。它包含引导内存分配器为节点分配内存所需的信息
     - node_start_pfn：节点第一个页面帧逻辑编号，所有页帧是依次编号的，每个页帧的号码都是全局唯一的。在UMA中总是0
-        
+      
         - 页帧号： 参考http://book.51cto.com/art/201502/465673.htm
     - node_present_pages：该节点下包含的物理页面的总数
     - node_spanned_pages：物理页面范围的总大小，包括洞
@@ -467,7 +467,7 @@
             140 static void __init zone_sizes_init(unsigned long min, unsigned long max_low, 141	unsigned long max_high)
         ```
 - zonelist数据结构
-    
+  
     1. 系统中会有一个zonelist的数据结构，伙伴系统分配器会从zonelist开始分配内存，zonelist有一个zoneref数组，数组里有一个成员会指向zone数据结构。zoneref数组的第一个成员指向的zone是页面分配器的第一个候选者，其它成员则是第一个候选者分配失败之后才考虑，优先级逐渐降低。
 ---
 
@@ -652,7 +652,7 @@
     void kmem_cache_free(struct kmem_cache *, void *)
     ```
 - kmalloc函数接口大量使用了slab机制
-    
+  
     - kmalloc()函数用于创建通用的缓存，类似于用户空间中C标准库malloc()函数
 ---
 
@@ -725,7 +725,7 @@
         call: alloc_vmap_area(size, align, start, end, node, gfp_mask)
         ```
 5. static struct vmap_area *alloc_vmap_area(unsigned long size, unsigned long align,unsigned long vstart, unsigned long vend, int node, gfp_t gfp_mask)
-    
+   
     - alloc_vmap_area在vmalloc整个空间中查找一块大小合适的并且没有人使用的空间，这段空间称为hole。
 ---
 
@@ -910,4 +910,9 @@ struct mm_struct {
 - 伙伴系统以页为单位来管理内存，内存碎片也是基于页面的，即由大量离散且不连续的页面导致的。内存碎片不是好事情，有些情况下物理设备需要大段的连续的物理内存，如果内核无法满足，则会发生内核panic。内存归整就是为了解决内核碎片化而出现的一个功能。
 - 内核中去碎片化的基本原理是按照页的可移动性将页面分组。迁移内核本身使用的物理内存的实现难度和复杂度都很大，因此目前的内核是不迁移本身使用的物理页面。对于用户进程使用的页面，实际上通过用户页表的映射的映射来访问。用户页表可以移动和修改映射关系，不会影响用户进程，因此内存归整是基于页面迁移来实现的。
 - 内存归整的一个重要的应用场景是在分配大块内存时（order > 1），在WMARK_LOW低水位情况下分配失败，唤醒kswapd内核线程后依然无法分配出内存，这时调用__alloc_pages_direct_compact()来压缩内存尝试分配出所需要的内存。
-- 
+
+## KSM
+
+- KSM全称Kernel SamePage Merging，用于合并内容相同的页面。
+- KSM只会处理通过madvise系统调用显示指定的用户进程空间内存，因此用户程序想使用这个功能就必须在分配内存时显示地调用`madvise(addr,length,MADV_MERGEABLE)`，如果用户想在KSM中取消某一个用户进程地址空间的合并功能，也需要显示地调用`madvise(addr,length,MADV_UNMERGEABLE)` 。
+- 在Android系统中，在libc库（Android系统的libc库是bionic）中的mmap函数实现已经默认添加了此功能。
