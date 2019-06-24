@@ -71,20 +71,30 @@
 ---
 
 13. Android 代码下载
-    ```
+    ```shell
     repo init -u ssh://gitadmin@gitmirror.unisoc.com/platform/manifest -b <<branch>> -c --no-tags 
     repo sync -c --no-tags 参数会让下载加快
     repo init 也可以使用 -c --no-tags 啦，init过程飞快
     ```
 
     9.0 代码下载
-    ```
+    
+    ```shell
     repo init -u ssh://gitadmin@gitmirror.unisoc.com/platform/manifest.git -b sprdroid9.0_trunk
     repo sync -c -f
+```
+    
+    10.0代码下载
+    
+    ```shell
+    # http://wikiserver.spreadtrum.com/SoftwareSystem/wiki/Android10.0
+    repo init -u ssh://gitadmin@gitmirror.spreadtrum.com/platform/manifest.git -b sprdroidq_trunk
+    repo sync -c -f
     ```
-
+    
     更新manifest.xml
-    ```
+    
+    ```shell
     croot;
     cd .repo/manifests;
     [copy your manifest.xml to current directory]
@@ -108,7 +118,7 @@
         make -j8
         ```
     - 编译服务器：
-        - ssh -X haibin.xu@tjand22[(10.5.2.51)], 密码：外网密码
+        - ssh -X haibin.xu@tjand02[(10.5.2.51)], 密码：外网密码
         - 文件拷贝：
             - `scp authorized_keys haibin.xu@tjand02:~/.ssh`
             - `scp -r dt.img system.img kernel vendor.img spreadtrum\\haibin.xu@10.5.41.70:~/Desktop/sharkl5_8.1_img/sharkl5_8.1_img`
@@ -340,3 +350,4 @@
 34. ubuntu 启动opengrok
 - /opt/tomcat8/bin/shutdown.sh && /opt/tomcat8/bin/startup.sh; opengrok-indexer -j /usr/lib/jvm/java-1.8.0-openjdk-amd64/bin/java -J=-Djava.util.logging.config.file=/var/opengrok/logging.properties -a /opt/opengrok/lib/opengrok.jar --  -s /index/src -d /opt/opengrok/database/data -H -P -S -G -W /opt/opengrok/etc/configuration.xml -U http://localhost:8080/source
 - ubuntu配置opengrok： https://luomuxiaoxiao.com/?p=56
+
