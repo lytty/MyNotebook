@@ -340,3 +340,5 @@
 34. ubuntu 启动opengrok
 - /opt/tomcat8/bin/shutdown.sh && /opt/tomcat8/bin/startup.sh; opengrok-indexer -j /usr/lib/jvm/java-1.8.0-openjdk-amd64/bin/java -J=-Djava.util.logging.config.file=/var/opengrok/logging.properties -a /opt/opengrok/lib/opengrok.jar --  -s /index/src -d /opt/opengrok/database/data -H -P -S -G -W /opt/opengrok/etc/configuration.xml -U http://localhost:8080/source
 - ubuntu配置opengrok： https://luomuxiaoxiao.com/?p=56
+
+35. qemu-system-arm -M vexpress-a9 -smp 4 -m 1024M -kernel arch/arm/boot/zImage -append "rdinit=/linuxrc console=ttyAMA0 loglevel=8" -dtb arch/arm/boot/dts/vexpress-v2p-ca9.dtb -nographic
