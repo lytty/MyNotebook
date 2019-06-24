@@ -150,7 +150,7 @@
 
      注：对于“/”root节点，它也存在compatible属性，用来匹配machine type。具体说明将在后面给出。
 
-  3. interrupts属性![1560743906756](/home/haibin.xu/haibin/picture/dts-interrupts属性范例.png)
+  3. interrupts属性![1560743906756](../picture/dts-interrupts属性范例.png)
 
      设备节点通过interrupt-parent来指定它所依附的中断控制器，当节点没有指定interrupt-parent时，则从parent节点中继承。上面例子中，root节点的interrupt-parent = <&mic>。这里使用了引用，即mic引用了②中的inrerrupt-controller @40008000；root节点的子节点并没有指定interrupt-controller，如ahb、fab，它们均使用从根节点继承过来的mic，即位于0x40008000的中断控制器。
 
