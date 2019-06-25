@@ -201,13 +201,13 @@
 
 ## 引用其他的Makefile
 - 在Makefile使用include关键字可以把别的Makefile包含进来，这很像C语言的#include，被包含的文件会原模原样的放在当前文件的包含位置。include的语法是：
-    
+  
     `include <filename>`
 
     filename可以是当前操作系统Shell的文件模式（可以保含路径和通配符）
 
 - 在include前面可以有一些空字符，但是绝不能是[Tab]键开始。include和<filename>可以用一个或多个空格隔开。举个例子，你有这样几个Makefile：a.mk、b.mk、c.mk，还有一个文件叫foo.make，以及一个变量$(bar)，其包含了e.mk和f.mk，那么，下面的语句：
-   
+  
    `include foo.make *.mk $(bar)`
 
     等价于：
@@ -264,9 +264,9 @@
     targets : prerequisites
         command
         ...
-
+    
     或是这样：
-
+    
     targets : prerequisites ; command
         command
         ...
@@ -563,7 +563,7 @@
             exec:
                     cd /home/hchen
                     pwd
-
+        
         示例二：
             exec:
                     cd /home/hchen; pwd
@@ -612,33 +612,33 @@
 - 如果你不想让某些变量传递到下级Makefile中，那么你可以这样声明：
 
         unexport <variable ...>
-
+        
         如：
         
             示例一：
-
+        
                 export variable = value
-
+        
                 其等价于：
-
+        
                 variable = value
                 export variable
-
+        
                 其等价于：
-
+        
                 export variable := value
-
+        
                 其等价于：
-
+        
                 variable := value
                 export variable
-
+        
             示例二：
-
+        
                 export variable += value
-
+        
                 其等价于：
-
+        
                 variable += value
                 export variable
 
@@ -697,7 +697,7 @@
         objects = program.o foo.o utils.o
         program : $(objects)
                 cc -o program $(objects)
-
+        
         $(objects) : defs.h
 
 - 变量会在使用它的地方精确地展开，就像C/C++中的宏一样，例如：
@@ -725,7 +725,7 @@
         foo = $(bar)
         bar = $(ugh)
         ugh = Huh?
-
+        
         all:
                 echo $(foo)
 
@@ -739,9 +739,9 @@
 - 当“CFLAGS”在命令中被展开时，会是“-Ifoo -Ibar -O”。但这种形式也有不好的地方，那就是递归定义，如：
 
         CFLAGS = $(CFLAGS) -O
-
+        
         或：
-
+        
         A = $(B)
         B = $(A)
 
@@ -868,7 +868,7 @@
 
             a_objects := a.o b.o c.o
             1_objects := 1.o 2.o 3.o
-
+        
             sources := $($(a1)_objects:.o=.c)
 
         这个例子中，如果$(a1)的值是“a”的话，那么，$(sources)的值就是“a.c b.c c.c”；如果$(a1)的值是“1”，那么$(sources)的值是“1.c 2.c 3.c”。
@@ -880,9 +880,9 @@
             else
             func := strip
             endif
-
+        
             bar := a d b g q c
-
+        
             foo := $($(func) $(bar))
 
         这个示例中，如果定义了“do_sort”，那么：foo := $(sort a d b g q c)，于是$(foo)的值就是“a b c d g q”，而如果没有定义“do_sort”，那么：foo := $(sort a d b g q c)，调用的就是strip函数。
@@ -937,7 +937,7 @@
 - 如果有变量是通常make的命令行参数设置的，那么Makefile中对这个变量的赋值会被忽略。如果你想在Makefile中设置这类参数的值，那么，你可以使用“override”指示符。其语法是：
 
         override <variable> = <value>
-
+        
         override <variable> := <value>
 
     当然，你还可以追加：
@@ -951,7 +951,7 @@
         endef
 
 ## 六、多行变量
- 
+
 - 还有一种设置变量值的方法是使用define关键字。使用define关键字设置变量的值可以有换行，这有利于定义一系列的命令（前面我们讲过“命令包”的技术就是利用这个关键字）。
 
 - define指示符后面跟的是变量的名字，而重起一行定义变量的值，定义是以endef关键字结束。其工作方式和“=”操作符一样。变量的值可以包含函数、命令、文字，或是其它变量。因为命令需要以[Tab]键开头，所以如果你用define定义的命令变量中没有以[Tab]键开头，那么make就不会把其认为是命令。
@@ -984,7 +984,7 @@
     - 其语法是：
 
             <target ...> : <variable-assignment>
-
+        
             <target ...> : overide <variable-assignment>
 
         \<variable-assignment>可以是前面讲过的各种赋值表达式，如“=”、“:=”、“+=”或是“？=”。第二个语法是针对于make命令行带入的变量，或是系统环境变量。
@@ -994,16 +994,16 @@
             prog : CFLAGS = -g
             prog : prog.o foo.o bar.o
                     $(CC) $(CFLAGS) prog.o foo.o bar.o
-
+        
             prog.o : prog.c
                     $(CC) $(CFLAGS) prog.c
-
+        
             foo.o : foo.c
                     $(CC) $(CFLAGS) foo.c
-
+        
             bar.o : bar.c
                     $(CC) $(CFLAGS) bar.c
- 
+
         在这个示例中，不管全局的$(CFLAGS)的值是什么，在prog目标，以及其所引发的所有规则中（prog.o foo.o bar.o的规则），$(CFLAGS)的值都是“-g”
 
 
@@ -1018,11 +1018,11 @@
     - 同样，模式变量的语法和“目标变量”一样：
 
             <pattern ...> : <variable-assignment>
-
+        
             <pattern ...> : override <variable-assignment>
 
         override同样是针对于系统环境传入的变量，或是make命令行指定的变量。
- 
+
 
 
 # 使用条件判断
@@ -1036,7 +1036,7 @@
 
         libs_for_gcc = -lgnu
         normal_libs =
-
+        
         foo: $(objects)
         ifeq ($(CC),gcc)
                 $(CC) -o foo $(objects) $(libs_for_gcc)
@@ -1062,13 +1062,13 @@
 
             libs_for_gcc = -lgnu
             normal_libs =
-
+        
             ifeq ($(CC),gcc)
             libs=$(libs_for_gcc)
             else
             libs=$(normal_libs)
             endif
-
+        
             foo: $(objects)
                     $(CC) -o foo $(objects) $(libs)
 
@@ -1131,7 +1131,7 @@
             else
             frobozz = no
             endif
-
+        
             示例二：
             foo =
             ifdef foo
@@ -1187,15 +1187,17 @@
 
 - `$(subst <from>,<to>,<text>)`
 
-    - 名称：字符串替换函数——subst。
-    - 功能：把字串<text>中的<from>字符串替换成<to>。
-    - 返回：函数返回被替换过后的字符串。
-
-    - 示例：
-       
-        `$(subst ee,EE,feet on the street)，`
-       
-        把“feet on the street”中的“ee”替换成“EE”，返回结果是“fEEt on the strEEt”。
+    > 名称：字符串替换函数——subst。
+    >
+    > 功能：把字串<text>中的<from>字符串替换成<to>。
+>
+    > 返回：函数返回被替换过后的字符串。
+    >
+    > 示例：
+    >
+    > `$(subst ee,EE,feet on the street)，`
+    >
+    > 把“feet on the street”中的“ee”替换成“EE”，返回结果是“fEEt on the strEEt”。
 
 
 - `$(patsubst <pattern>,<replacement>,<text>)`
@@ -1231,7 +1233,7 @@
     - 功能：去掉<string>字串中开头和结尾的空字符。
     - 返回：返回被去掉空格的字符串值。
     - 示例：
-       
+      
         `$(strip a b c )`
 
         把字串“a b c ”去到开头和结尾的空格，结果是“a b c”。
@@ -1258,7 +1260,7 @@
             sources := foo.c bar.c baz.s ugh.h
             foo: $(sources)
                     cc $(filter %.c %.s,$(sources)) -o foo
-
+        
             $(filter %.c %.s,$(sources))返回的值是“foo.c bar.c baz.s”。
 
 - `$(filter-out <pattern...>,<text>)`
@@ -1270,9 +1272,9 @@
 
             objects=main1.o foo.o main2.o bar.o
             mains=main1.o main2.o
-        
+            
             $(filter-out $(mains),$(objects)) 返回值是“foo.o bar.o”。
-       
+    
 - `$(sort <list>)`
 
     - 名称：排序函数——sort。
@@ -1296,20 +1298,35 @@
     - 示例： `$(wordlist 2, 3, foo bar baz)` 返回值是“bar baz”。
 
 - `$(words <text>)`
+    > 名称：单词个数统计函数——words。
+    >
+    > 功能：统计`<text>`中字符串中的单词个数。
+    >
+    > 返回：返回`<text>`中的单词数。
+    >
+    > 示例：`$(words, foo bar baz)`返回值是“3”。
+    >
+    > 备注：如果我们要取`<text>`中最后的一个单词，我们可以这样：`$(word $(words <text>),<text>)`。
 
-    - 名称：单词个数统计函数——words。
-    - 功能：统计`<text>`中字符串中的单词个数。
-    - 返回：返回`<text>`中的单词数。
-    - 示例：`$(words, foo bar baz)`返回值是“3”。
-    - 备注：如果我们要取`<text>`中最后的一个单词，我们可以这样：`$(word $(words <text>),<text>)`。
+    
 
 - `$(firstword <text>)`
+    > 名称：首单词函数——firstword。
+    >
+    > 功能：取字符串`<text>`中的第一个单词。
+    >
+    > 返回：返回字符串`<text>`的第一个单词。
+    >
+    > 示例：`$(firstword foo bar)`返回值是“foo”。
+    >
+    > 备注：这个函数可以用word函数来实现：`$(word 1,<text>)`。
 
-    - 名称：首单词函数——firstword。
-    - 功能：取字符串`<text>`中的第一个单词。
-    - 返回：返回字符串`<text>`的第一个单词。
-    - 示例：`$(firstword foo bar)`返回值是“foo”。
-    - 备注：这个函数可以用word函数来实现：`$(word 1,<text>)`。
+- `$(lastword <text> )`
+  > 名称：尾单词函数——lastword。
+  > 功能：取字符串<text>中的最后一个单词。
+  > 返回：返回字符串<text>的最后一个单词。
+  > 示例：$(lastword foo bar)返回值是“bar”。
+
 
 - 以上，是所有的字符串操作函数，如果搭配混合使用，可以完成比较复杂的功能。这里，举一个现实中应用的例子。我们知道，make使用“VPATH”变量来指定“依赖文件”的搜索路径。于是，我们可以利用这个搜索路径来指定编译器对头文件的搜索路径参数CFLAGS，如：
 
@@ -1335,9 +1352,9 @@
     - 功能：从文件名序列`<names>`中取出非目录部分。非目录部分是指最后一个反斜杠（“/”）之后的部分。
     - 返回：返回文件名序列`<names>`的非目录部分。
     - 示例： `$(notdir src/foo.c hacks)`返回值是“foo.c hacks”。
- 
+
 - `$(suffix <names...>)`
-   
+  
     - 名称：取后缀函数——suffix。
     - 功能：从文件名序列`<names>`中取出各个文件名的后缀。
     - 返回：返回文件名序列`<names>`的后缀序列，如果文件没有后缀，则返回空字串。
@@ -1396,7 +1413,7 @@
 
 - 而if函数的返回值是，如果`<condition>`为真（非空字符串），那个`<then-part>`会是整个函数的返回值，如果`<condition>`为假（空字符串），那么`<else-part>`会是整个函数的返回值，此时如果`<else-part>`没有被定义，那么，整个函数返回空字串。所以，`<then-part>`和`<else-part>`只会有一个被计算。
 
- 
+
 ## 六、call函数
 
 - call函数是唯一一个可以用来创建新的参数化的函数。你可以写一个非常复杂的表达式，这个表达式中，你可以定义许多参数，然后你可以用call函数来向这个表达式传递参数。其语法是：
@@ -1461,13 +1478,13 @@
 - 产生一个致命的错误，`<text ...>`是错误信息。注意，error函数不会在一被使用就会产生错误信息，所以如果你把其定义在某个变量中，并在后续的脚本中使用这个变量，那么也是可以的。例如：
 
         示例一：
-
+        
         ifdef ERROR_001
         $(error error is $(ERROR_001))
         endif
-
+        
         示例二：
-
+        
         ERR = $(error found an error!)
         .PHONY: err
         err: ; $(ERR)
@@ -1601,7 +1618,7 @@
         i —— 也就是implicit，输出所有的隐含规则。
         j —— 也就是jobs，输出执行规则中命令的详细信息，如命令的PID、返回码等。
         m —— 也就是makefile，输出make读取makefile，更新makefile，执行makefile的信息。
-
+        
         “-d”
     相当于“--debug=a”。
 
@@ -1698,6 +1715,7 @@
     假定目标`<file>`需要更新，如果和“-n”选项使用，那么这个参数会输出该目标更新时的运行动作。如果没有“-n”那么就像运行UNIX的“touch”命令一样，使得`<file>`的修改时间为当前时间。
 
         “--warn-undefined-variables”
+    
     只要make发现有未定义的变量，那么就输出警告信息。
 
 # 隐含规则
@@ -1778,39 +1796,44 @@
 
     7. 汇编和汇编预处理的隐含规则。
             
-            “<n>.o” 的目标的依赖目标会自动推导为“<n>.s”，默认使用编译品“as”，并且其生成命令是：“$(AS) $(ASFLAGS)”。“<n>.s” 的目标的依赖目标会自动推导为“<n>.S”，默认使用C预编译器“cpp”，并且其生成命令是：“$(AS) $(ASFLAGS)”。
-
+       
+    
+    “<n>.o” 的目标的依赖目标会自动推导为“<n>.s”，默认使用编译品“as”，并且其生成命令是：“$(AS) $(ASFLAGS)”。“<n>.s” 的目标的依赖目标会自动推导为“<n>.S”，默认使用C预编译器“cpp”，并且其生成命令是：“$(AS) $(ASFLAGS)”。
+    
     8. 链接Object文件的隐含规则。
             
             “<n>”目标依赖于“<n>.o”，通过运行C的编译器来运行链接程序生成（一般是“ld”），其生成命令是：“$(CC) $(LDFLAGS) <n>.o $(LOADLIBES) $(LDLIBS)”。这个规则对于只有一个源文件的工程有效，同时也对多个Object文件（由不同的源文件生成）的也有效。例如如下规则：
-                    x : y.o z.o
-
-            并且“x.c”、“y.c”和“z.c”都存在时，隐含规则将执行如下命令：
-
+                x : y.o z.o
+        
+        并且“x.c”、“y.c”和“z.c”都存在时，隐含规则将执行如下命令：
+        
             cc -c x.c -o x.o
             cc -c y.c -o y.o
             cc -c z.c -o z.o
             cc x.o y.o z.o -o x
             rm -f x.o
             rm -f y.o
-            rm -f z.o
-
-            如果没有一个源文件（如上例中的x.c）和你的目标名字（如上例中的x）相关联，那么，你最好写出自己的生成规则，不然，隐含规则会报错的。
-
+        rm -f z.o
+        
+        如果没有一个源文件（如上例中的x.c）和你的目标名字（如上例中的x）相关联，那么，你最好写出自己的生成规则，不然，隐含规则会报错的。
+    
     9. Yacc C程序时的隐含规则。
     
-            “<n>.c”的依赖文件被自动推导为“n.y”（Yacc生成的文件），其生成命令是：“$(YACC) $(YFALGS)”。（“Yacc”是一个语法分析器，关于其细节请查看相关资料）
-
+        “<n>.c”的依赖文件被自动推导为“n.y”（Yacc生成的文件），其生成命令是：“$(YACC) $(YFALGS)”。（“Yacc”是一个语法分析器，关于其细节请查看相关资料）
+    
     10. Lex C程序时的隐含规则。
             
-            “<n>.c”的依赖文件被自动推导为“n.l”（Lex生成的文件），其生成命令是：“$(LEX) $(LFALGS)”。（关于“Lex”的细节请查看相关资料）
-
+    
+        “<n>.c”的依赖文件被自动推导为“n.l”（Lex生成的文件），其生成命令是：“$(LEX) $(LFALGS)”。（关于“Lex”的细节请查看相关资料）
+        
     11. Lex Ratfor程序时的隐含规则。
-            
-            “<n>.r”的依赖文件被自动推导为“n.l”（Lex生成的文件），其生成命令是：“$(LEX) $(LFALGS)”。
-
+        
+        
+        “<n>.r”的依赖文件被自动推导为“n.l”（Lex生成的文件），其生成命令是：“$(LEX) $(LFALGS)”。
+        
     12. 从C程序、Yacc文件或Lex文件创建Lint库的隐含规则。
             
+        
             “<n>.ln” （lint生成的文件）的依赖文件被自动推导为“n.c”，其生成命令是：“$(LINT) $(LINTFALGS) $(CPPFLAGS) -i”。对于“<n>.y”和“<n>.l”也是同样的规则。
 
 ## 三、隐含规则使用的变量
@@ -1867,7 +1890,7 @@
     2. 关于命令参数的变量
 
             下面的这些变量都是相关上面的命令的参数。如果没有指明其默认值，那么其默认值都是空。
-
+        
             ARFLAGS
                 函数库打包程序AR命令的参数。默认值是“rv”。
             ASFLAGS
@@ -2038,9 +2061,9 @@
 
         .c.o: foo.h
             $(CC) -c $(CFLAGS) $(CPPFLAGS) -o $@ $<
-
+        
         这个例子，就是说，文件".c.o"依赖于文件"foo.h"，而不是我们想要的这样：
-
+        
         %.o: %.c foo.h
             $(CC) -c $(CFLAGS) $(CPPFLAGS) -o $@ $<
 
@@ -2049,9 +2072,9 @@
 - 而要让make知道一些特定的后缀，我们可以使用伪目标".SUFFIXES"来定义或是删除，如：
 
         .SUFFIXES: .hack .win
-
+        
         把后缀.hack和.win加入后缀列表中的末尾。
-
+        
         .SUFFIXES:              # 删除默认的后缀
         .SUFFIXES: .c .o .h   # 定义自己的后缀
 
@@ -2108,9 +2131,9 @@
     如果要指定多个member，那就以空格分开，如：
 
         foolib(hack.o kludge.o)
-
+        
         其等价于：
-
+        
         foolib(hack.o) foolib(kludge.o)
 
 - 你还可以使用Shell的文件通配符来定义，如：
@@ -2137,9 +2160,9 @@
                     $(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $*.o
                     $(AR) r $@ $*.o
                     $(RM) $*.o
-
+        
             其等效于：
-
+        
             (%.o) : %.c
                 $(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $*.o
                 $(AR) r $@ $*.o
