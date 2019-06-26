@@ -82,6 +82,7 @@
     ```shell
     repo init -u ssh://gitadmin@gitmirror.unisoc.com/platform/manifest.git -b sprdroid9.0_trunk
     repo sync -c -f
+    ```
 ```
     
     10.0代码下载
@@ -90,8 +91,8 @@
     # http://wikiserver.spreadtrum.com/SoftwareSystem/wiki/Android10.0
     repo init -u ssh://gitadmin@gitmirror.spreadtrum.com/platform/manifest.git -b sprdroidq_trunk
     repo sync -c -f
-    ```
-    
+```
+
     更新manifest.xml
     
     ```shell
@@ -348,6 +349,7 @@
 - 启动tomcat bin中的startup.bat
 
 34. ubuntu 启动opengrok
-- /opt/tomcat8/bin/shutdown.sh && /opt/tomcat8/bin/startup.sh; opengrok-indexer -j /usr/lib/jvm/java-1.8.0-openjdk-amd64/bin/java -J=-Djava.util.logging.config.file=/var/opengrok/logging.properties -a /opt/opengrok/lib/opengrok.jar --  -s /index/src -d /opt/opengrok/database/data -H -P -S -G -W /opt/opengrok/etc/configuration.xml -U http://localhost:8080/source
+- /opt/tomcat8/bin/shutdown.sh && /opt/tomcat8/bin/startup.sh
+- opengrok-indexer -j /usr/lib/jvm/java-1.8.0-openjdk-amd64/bin/java -J=-Djava.util.logging.config.file=/var/opengrok/logging.properties -a /opt/opengrok/lib/opengrok.jar --  -s /index/src -d /opt/opengrok/database/data -H -P -S -G -W /opt/opengrok/etc/configuration.xml -U http://localhost:8080/source
 - ubuntu配置opengrok： https://luomuxiaoxiao.com/?p=56
 

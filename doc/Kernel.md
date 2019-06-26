@@ -18,7 +18,7 @@
 ## 内核调试
 - 内核编译
   
-    ```
+    ```shell
     export ARCH=arm
 export CROSS_COMPILE=arm-linux-gnueabi-
     make vexpress_defconfig
@@ -32,11 +32,26 @@ export CROSS_COMPILE=arm-linux-gnueabi-
     
 - 模拟4核 Cortex-A9 Versatile Express开发平台：
   
-    ```
+    ```shell
     qemu-system-arm -M vexpress-a9 -smp 4 -m 1024M -kernel arch/arm/boot/zImage -append "rdinit=/linuxrc console=ttyAMA0 loglevel=8" -dtb arch/arm/boot/dts/vexpress-v2p-ca9.dtb -nographic
     ```
 
-- 关闭QEMU平台：killall qemu-system-arm
+- 关闭QEMU平台：
+
+    ```shell
+    killall qemu-system-arm
+    ```
+- GDB启动：
+
+  ```shell
+  arm-none-eabi-gdb --tui vmlinux
+  (gdb) target remote localhost:1234
+  (gdb) b start_kernel
+  (gdb) c
+  ```
+
+  
+
 ---
 
 ## DTS（设备树）

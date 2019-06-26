@@ -15,209 +15,202 @@
 
 - 内核内存定义：
 
-  1. sprdroid9.0_trunk/kernel4.14/arch/arm/boot/dts/vexpress-v2p-ca9.dts![1560498518227](../picture/arm32内核内存定义.png)
-  2. sprdroid9.0_trunk/kernel4.14/arch/arm64/boot/dts/sprd/sp9832e-1h10.dts ![1560495908784](../picture/arm64内核内存定义.png)
-
-  3. 以上分别为arm32、arm64内核内存定义，vexpress-v2p-ca9.dts文件中定义了内核内存的起始地址为0x6000 0000， 大小为0x4000 0000，即1G大小的的内存空间。sp9832e-1h10.dts文件中定义了内存的起始地址为0x0000 0000 8000 0000，大小为0x0000 0000 8000 0000，即2G大小的内核内存空间，注意，此处的起始地址为物理地址。
-
+  1. Linux-4.14/arch/arm/boot/dts/vexpress-v2p-ca9.dts               ![1560498518227](../picture/arm32内核内存定义.png)
+  2. linux-4.14/arch/arm64/boot/dts/sprd/sp9860g-1h10.dts![1560495908784](../picture/arm64内核内存定义.png)
+  3. 以上分别为arm32、arm64内核内存定义，vexpress-v2p-ca9.dts文件中定义了内核内存的起始地址为0x6000 0000， 大小为0x4000 0000，即1G大小的的内存空间。注意，此处的起始地址为物理地址。
   4. arm32、arm64内存定义因为地址位数不同稍有不同，具体可参考Linux设备树中节点的定义等相关知识，如https://www.linuxidc.com/Linux/2016-01/127337p6.htm
 
-- 解析内存
-  
-  1. 内核在启动的过程中，需要解析DTS（vexpress-v2p-ca9.dts、sp9832e-1h10.dts）文件，相关代码调用如下：![1560545103005](../picture/内存dts解析函数调用关系.png)
-  
-  2. 函数解析
-  
-     - [linux-4.0](http://localhost:8080/source/xref/linux-4.0/)/[init](http://localhost:8080/source/xref/linux-4.0/init/)/[main.c](http://localhost:8080/source/xref/linux-4.0/init/main.c)
-  
-       ​		start_kernel(void) -> setup_arch(&command_line)，调用setup_arch函数，传给他的参数是未被初始化的内部变量command_line。
-  
-     ```c
-     489  asmlinkage __visible void __init start_kernel(void)
-     490  {
-     491  	char *command_line;
-     		...
-     520  	setup_arch(&command_line);
-     		...
-     675  }
-     ```
-  
-     
-  
-     - [linux-4.0](http://localhost:8080/source/xref/linux-4.0/)/[arch](http://localhost:8080/source/xref/linux-4.0/arch/)/[arm64](http://localhost:8080/source/xref/linux-4.0/arch/arm64/)/[kernel](http://localhost:8080/source/xref/linux-4.0/arch/arm64/kernel/)/[setup.c](http://localhost:8080/source/xref/linux-4.0/arch/arm64/kernel/setup.c)
-  
-       ​		setup_arch(&command_line) -> setup_machine_fdt(__fdt_pointer)，这个setup_arch()函数是start_kernel阶段最重要的一个函数，每个体系都有自己的setup_arch()函数，是体系结构相关的，具体编译哪个体系的setup_arch()函数，由顶层Makefile中的ARCH变量决定。
-  
-     ```c
-     356  void __init setup_arch(char **cmdline_p)
-     357  {
-     		...
-             
-     360  	setup_machine_fdt(__fdt_pointer);
-     361  
-     		...
-     405  }
-     ```
-  
-     ​		参数__fdt_pointer 是bootloader传递过来的，代表devicetree在内存中的地址
-  
-     
-  
-     - setup_machine_fdt(__fdt_pointer) -> early_init_dt_scan(phys_to_virt(dt_phys))
-  
-     ```C
-     310  static void __init setup_machine_fdt(phys_addr_t dt_phys)
-     311  {
-     312  	if (!dt_phys || !early_init_dt_scan(phys_to_virt(dt_phys))) {
-     			...
-     321  	}
-     		...
-     324  }
-     ```
-  
-     ​		phys_to_virt() 函数将物理地址转化为虚拟地址。
-  
-     
-  
-     - [linux-4.0](http://localhost:8080/source/xref/linux-4.0/)/[drivers](http://localhost:8080/source/xref/linux-4.0/drivers/)/[of](http://localhost:8080/source/xref/linux-4.0/drivers/of/)/[fdt.c](http://localhost:8080/source/xref/linux-4.0/drivers/of/fdt.c)
-  
-       early_init_dt_scan(phys_to_virt(dt_phys)) -> early_init_dt_scan_nodes()
-  
-     ```c
-     1038  bool __init early_init_dt_scan(void *params)
-     1039  {
-     1040  	bool status;
-     1041  
-     1042  	status = early_init_dt_verify(params);
-     1043  	if (!status)
-     1044  		return false;
-     1045  
-     1046  	early_init_dt_scan_nodes();
-     1047  	return true;
-     1048  }
-     ```
-  
-     
-  
-     - early_init_dt_scan_nodes(phys_to_virt(dt_phys)) -> early_init_dt_verify(params)，early_init_dt_verify(params)函数中，将devicetree在内存中的地址（转换后的虚拟地址）赋值给initial_boot_params，initial_boot_params在后面的of_scan_flat_dt函数使用到。
-  
-     ```c
-     1009  bool __init early_init_dt_verify(void *params)
-     1010  {
-     1011  	if (!params)
-     1012  		return false;
-     1013  
-     1014  	/* check device tree validity */
-     1015  	if (fdt_check_header(params))
-     1016  		return false;
-     1017  
-     1018  	/* Setup flat device-tree pointer */
-     1019  	initial_boot_params = params;
-     1020  	of_fdt_crc32 = crc32_be(~0, initial_boot_params,
-     1021  				fdt_totalsize(initial_boot_params));
-     1022  	return true;
-     1023  }
-     ```
-  
-     
-  
-     - early_init_dt_scan_nodes() -> early_init_dt_scan_memory
-  
-     ```c
-     1026  void __init early_init_dt_scan_nodes(void)
-     1027  {
-     1028  	/* Retrieve various information from the /chosen node */
-     1029  	of_scan_flat_dt(early_init_dt_scan_chosen, boot_command_line);
-     1030  
-     1031  	/* Initialize {size,address}-cells info */
-     1032  	of_scan_flat_dt(early_init_dt_scan_root, NULL);
-     1033  
-     1034  	/* Setup memory, calling early_init_dt_add_memory_arch */
-     1035  	of_scan_flat_dt(early_init_dt_scan_memory, NULL);
-     1036  }
-     ```
-  
-     
-  
-     - of_scan_flat_dt函数是用来scan整个device  tree，针对每一个node调用callback函数。"of_scan_flat_dt(early_init_dt_scan_memory, NULL)"针对memory node进行scan。 
-  
-     ```c
-     590  int __init of_scan_flat_dt(int (*it)(unsigned long node,
-     591  				     const char *uname, int depth,
-     592  				     void *data),
-     593  			   void *data)
-     594  {
-     595  	const void *blob = initial_boot_params;
-     596  	const char *pathp;
-     597  	int offset, rc = 0, depth = -1;
-     598  
-     599     for (offset = fdt_next_node(blob, -1, &depth);
-     600               offset >= 0 && depth >= 0 && !rc;
-     601               offset = fdt_next_node(blob, offset, &depth)) {
-     602  
-     603  		pathp = fdt_get_name(blob, offset, NULL);
-     604  		if (*pathp == '/')
-     605  			pathp = kbasename(pathp);
-     606  		rc = it(offset, pathp, depth, data);
-     607  	}
-     608  	return rc;
-     609  }
-     ```
-  
-     
-  
-     - setup_machine_fdt、early_init_dt_scan、early_init_dt_scan_nodes、early_init_dt_verify、early_init_dt_scan_nodes、of_scan_flat_dt、以及early_init_dt_scan_memory都是对设备树进行操作的相关函数，需要对设备树有一定的了解，我们会在其他章节中对设备树及其内核中设备树相关的操作函数做一详细介绍，本章节暂只理解各函数基本功能即可。early_init_dt_scan_memory函数是对设备树中内存节点读取的核心函数。
-  
-     ```c
-     856  int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
-     857  				     int depth, void *data)
-     858  {
-     859  	const char *type = of_get_flat_dt_prop(node, "device_type", NULL);
-     860  	const __be32 *reg, *endp;
-     861  	int l;
-     862  
-     863  	/* We are scanning "memory" nodes only */
-     864  	if (type == NULL) {
-     865  		/*
-     866  		 * The longtrail doesn't have a device_type on the
-     867  		 * /memory node, so look for the node called /memory@0.
-     868  		 */
-     869  		if (!IS_ENABLED(CONFIG_PPC32) || depth != 1 || strcmp(uname, "memory@0") != 0)
-     870  			return 0;
-     871  	} else if (strcmp(type, "memory") != 0)
-     872  		return 0;
-     873  
-     874  	reg = of_get_flat_dt_prop(node, "linux,usable-memory", &l);
-     875  	if (reg == NULL)
-     876  		reg = of_get_flat_dt_prop(node, "reg", &l);
-     877  	if (reg == NULL)
-     878  		return 0;
-     879  
-     880  	endp = reg + (l / sizeof(__be32));
-     881  
-     882  	pr_debug("memory scan node %s, reg size %d, data: %x %x %x %x,\n",
-     883  	    uname, l, reg[0], reg[1], reg[2], reg[3]);
-     884  
-     885  	while ((endp - reg) >= (dt_root_addr_cells + dt_root_size_cells)) {
-     886  		u64 base, size;
-     887  
-     888  		base = dt_mem_next_cell(dt_root_addr_cells, &reg);
-     889  		size = dt_mem_next_cell(dt_root_size_cells, &reg);
-     890  
-     891  		if (size == 0)
-     892  			continue;
-     893  		pr_debug(" - %llx ,  %llx\n", (unsigned long long)base,
-     894  		    (unsigned long long)size);
-     895  
-     896  		early_init_dt_add_memory_arch(base, size);
-     897  	}
-     898  
-     899  	return 0;
-     900  }
-     ```
-  
-     ​		of_get_flat_dt_prop(node, "device_type", NULL)；获取device_type属性值。
-  
-     ​		第874行可以看出linux内核不仅支持reg属性，也支持linux,usable-memory属性。由于memory node一定是root node的child，因此dt_root_addr_cells（root  node的#address-cells属性值）和dt_root_size_cells（root node的#size-cells属性值）之和就是address，size数组的entry size，这两个值在early_init_dt_scan_root函数中设置。
-  
-     ​		early_init_dt_add_memory_arch(base, size)添加物理内存到memblock中进行管理。
+### 1.3 内核内存解析
+
+1. 内核在启动的过程中，需要解析DTS（vexpress-v2p-ca9.dts、sp9832e-1h10.dts）文件，相关代码调用如下：![1560545103005](../picture/内存dts解析函数调用关系.png)
+
+   
+
+2. 函数解析
+
+   - linux-4.14/init/main.c
+
+     ​		start_kernel(void) -> setup_arch(&command_line)，调用setup_arch函数，传给他的参数是未被初始化的内部变量command_line。
+
+   ```c
+   513  asmlinkage __visible void __init start_kernel(void)
+   514  {
+   515  	char *command_line;
+   ...
+   534  	setup_arch(&command_line);
+   ...
+   710  }
+   ```
+
+   - linux-4.14/[arch/arm/kernel/setup.c
+
+     ​		setup_arch(&command_line) -> setup_machine_fdt(__atags_pointer)，这个setup_arch()函数是start_kernel阶段最重要的一个函数，每个体系都有自己的setup_arch()函数，是体系结构相关的，具体编译哪个体系的setup_arch()函数，由顶层Makefile中的ARCH变量决定。
+
+   ```c
+   1074  void __init setup_arch(char **cmdline_p)
+   1075  {
+   1076  	const struct machine_desc *mdesc;
+   1077  
+   1078  	setup_processor();
+   1079  	mdesc = setup_machine_fdt(__atags_pointer);
+   		...
+   405  }
+   ```
+
+   ​		参数__atags_pointer是bootloader传递过来的，代表devicetree在内存中的地址，一般为0x68000000。
+
+   - linux-4.14/arch/arm/kernel/devtree.c
+
+     setup_machine_fdt(__atags_pointer) -> early_init_dt_scan(phys_to_virt(dt_phys))
+
+   ```C
+   218  const struct machine_desc * __init setup_machine_fdt(unsigned int dt_phys)
+   219  {
+   ...  
+   231  	if (!dt_phys || !early_init_dt_verify(phys_to_virt(dt_phys)))
+   232  		return NULL;
+   ...
+   260  	early_init_dt_scan_nodes();
+   ...
+   266  }
+   ```
+
+   ​		phys_to_virt() 函数将物理地址转化为虚拟地址。dt_phys为0x68000000时，转化为虚拟地址0xc8000000。early_init_dt_verify()函数主要检测设备树的有效性（主要做一些设备树头的检查，设备树相关数据的校验），如下：linux-4.14/drivers/of/fdt.c
+
+   ```c
+   1254  bool __init early_init_dt_verify(void *params)
+   1255  {
+   1256  	if (!params)
+   1257  		return false;
+   1258  
+   1259  	/* check device tree validity */
+   1260  	if (fdt_check_header(params))
+   1261  		return false;
+   1262  
+   1263  	/* Setup flat device-tree pointer */
+   1264  	initial_boot_params = params;
+   1265  	of_fdt_crc32 = crc32_be(~0, initial_boot_params,
+   1266  				fdt_totalsize(initial_boot_params));
+   1267  	return true;
+   1268  }
+   ```
+
+   
+
+   - linux-4.14/drivers/of/fdt.c
+
+     early_init_dt_scan_nodes() -> early_init_dt_scan_memory，early_init_dt_scan_nodes()函数实现三部分功能，具体如代码中的注释所述。
+
+   ```c
+   1271  void __init early_init_dt_scan_nodes(void)
+   1272  {
+   1273  	/* Retrieve various information from the /chosen node */
+       	/*  扫描 /chosen node，保存运行时参数（bootargs）到boot_command_line，此外，还处理initrd相关的property，并保存在initrd_start和initrd_end这两个全局变量中 */
+   1274  	of_scan_flat_dt(early_init_dt_scan_chosen, boot_command_line);
+   1275  
+   1276  	/* Initialize {size,address}-cells info */
+       	/* 扫描根节点，获取 {size,address}-cells信息，并保存在dt_root_size_cells和dt_root_addr_cells全局变量中 */ 
+   1277  	of_scan_flat_dt(early_init_dt_scan_root, NULL);
+   1278  
+   1279  	/* Setup memory, calling early_init_dt_add_memory_arch */
+       	/* 扫描DTB中的memory node，并把相关信息保存在meminfo中，全局变量meminfo保存了系统内存相关的信息。*/ 
+   1280  	of_scan_flat_dt(early_init_dt_scan_memory, NULL);
+   1281  }
+   ```
+
+   
+
+   - of_scan_flat_dt函数是用来scan整个device  tree，针对每一个node调用callback函数。"of_scan_flat_dt(early_init_dt_scan_memory, NULL)"针对memory node进行scan。 
+
+   ```c
+   737  int __init of_scan_flat_dt(int (*it)(unsigned long node,
+   738  				     const char *uname, int depth,
+   739  				     void *data),
+   740  			   void *data)
+   741  {
+   742  	const void *blob = initial_boot_params;
+   743  	const char *pathp;
+   744  	int offset, rc = 0, depth = -1;
+   745  
+   746  	if (!blob)
+   747  		return 0;
+   748  
+   749  	for (offset = fdt_next_node(blob, -1, &depth);
+   750  	     offset >= 0 && depth >= 0 && !rc;
+   751  	     offset = fdt_next_node(blob, offset, &depth)) {
+   752  
+   753  		pathp = fdt_get_name(blob, offset, NULL);
+   754  		if (*pathp == '/')
+   755  			pathp = kbasename(pathp);
+       		/*此处调用的回调函数是early_init_dt_scan_memory，即扫描dtb中的所有device_type = “memory”的节点*/
+   756  		rc = it(offset, pathp, depth, data);
+   757  	}
+   758  	return rc;
+   759  }
+   ```
+
+   
+
+   - linux-4.14/drivers/of/fdt.c
+
+     early_init_dt_scan_memory函数查找dtb中内存节点（device_type = “memory”的节点）。并将该节点的reg属性值（<base, size>数组）中的base/size值保存在memblock中（early_init_dt_add_memory_arch函数），注意，此处添加的内存起始地址是物理内存。
+
+   ```c
+   1061  int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
+   1062  				     int depth, void *data)
+   1063  {
+   1064  	const char *type = of_get_flat_dt_prop(node, "device_type", NULL);
+   1065  	const __be32 *reg, *endp;
+   1066  	int l;
+   1067  	bool hotpluggable;
+   1068  
+   1069  	/* We are scanning "memory" nodes only */
+   1070  	if (type == NULL) {
+   1071  		/*
+   1072  		 * The longtrail doesn't have a device_type on the
+   1073  		 * /memory node, so look for the node called /memory@0.
+   1074  		 */
+   1075  		if (!IS_ENABLED(CONFIG_PPC32) || depth != 1 || strcmp(uname, "memory@0") != 0)
+   1076  			return 0;
+   1077  	} else if (strcmp(type, "memory") != 0)
+   1078  		return 0;
+   1079  
+   1080  	reg = of_get_flat_dt_prop(node, "linux,usable-memory", &l);
+   1081  	if (reg == NULL)
+   1082  		reg = of_get_flat_dt_prop(node, "reg", &l);
+   1083  	if (reg == NULL)
+   1084  		return 0;
+   1085  
+   1086  	endp = reg + (l / sizeof(__be32));
+   1087  	hotpluggable = of_get_flat_dt_prop(node, "hotpluggable", NULL);
+   1088  
+   1089  	pr_debug("memory scan node %s, reg size %d,\n", uname, l);
+   1090  
+   1091  	while ((endp - reg) >= (dt_root_addr_cells + dt_root_size_cells)) {
+   1092  		u64 base, size;
+   1093  
+   1094  		base = dt_mem_next_cell(dt_root_addr_cells, &reg);
+   1095  		size = dt_mem_next_cell(dt_root_size_cells, &reg);
+   1096  
+   1097  		if (size == 0)
+   1098  			continue;
+   1099  		pr_debug(" - %llx ,  %llx\n", (unsigned long long)base,
+   1100  		    (unsigned long long)size);
+   1101  
+   1102  		early_init_dt_add_memory_arch(base, size);
+   1103  
+   1104  		if (!hotpluggable)
+   1105  			continue;
+   1106  
+   1107  		if (early_init_dt_mark_hotplug_memory_arch(base, size))
+   1108  			pr_warn("failed to mark hotplug range 0x%llx - 0x%llx\n",
+   1109  				base, base + size);
+   1110  	}
+   1111  
+   1112  	return 0;
+   1113  }
+   ```
+
+   ​		early_init_dt_add_memory_arch(base, size)最终调用memblock_add(base, size)将内存添加到到memblock子系统中进行管理。
+
+   ​		memblock内存管理机制用于在Linux启动后管理内存，一直到free_initmem()为止。之后totalram_pages就稳定在一个数值。至于memblock具体介绍，可百度搜索，此处不再具体叙述。
