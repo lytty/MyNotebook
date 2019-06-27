@@ -83,7 +83,7 @@
     repo init -u ssh://gitadmin@gitmirror.unisoc.com/platform/manifest.git -b sprdroid9.0_trunk
     repo sync -c -f
     ```
-```
+
     
     10.0代码下载
     
@@ -91,7 +91,7 @@
     # http://wikiserver.spreadtrum.com/SoftwareSystem/wiki/Android10.0
     repo init -u ssh://gitadmin@gitmirror.spreadtrum.com/platform/manifest.git -b sprdroidq_trunk
     repo sync -c -f
-```
+    ```
 
     更新manifest.xml
     
@@ -111,13 +111,13 @@
 ---
 
 15. - Android 代码编译
-        ```
+```
         source build/envsetup.sh
         lunch
         kheader
         make bootimage
         make -j8
-        ```
+```
     - 编译服务器：
         - ssh -X haibin.xu@tjand02[(10.5.2.51)], 密码：外网密码
         - 文件拷贝：

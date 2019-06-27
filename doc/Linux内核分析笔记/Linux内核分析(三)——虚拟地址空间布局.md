@@ -64,5 +64,35 @@
 
 ## 3. 内核地址空间布局
 
+- ARM64处理器架构的内核地址空间布局如下：![1561605242653](../picture/ARM64架构的内核地址空间布局.png)
 
+  内核地址空间中各区域如下：
+  
+  > 1. 线性映射区域的范围是[PAGE_OFFSET, 2^64 -1]，起始位置是PAGE_OFFSET = (0xFFFF FFFF FFFF FFFF << (VA_BITS-1))，长度是内核虚拟地址空间的一半。称为线性映射区域的原因是虚拟地址和物理地址是线性关系：`虚拟地址 = ((物理地址 - PHYS_OFFSET) + PAGE_OFFSET)`，其中PHYS_OFFSET是内存的其实物理地址。
+  >
+  > 2. vmemmap区域的范围是[VMEMMAP_START, PAGE_OFFSET]，长度是VMEMMAP_SIZE = (线性映射区域的长度/页长度 * page结构体的长度上限)。
+  >
+  >    ​       内核使用page结构体描述一个物理页，内存的所有物理页对应一个page结构体数组。如果内存的物理地址空间不连续，存在很多空洞，称为稀疏内存。vmemmap区域是稀疏内存的page结构体数组的虚拟地址空间。
+  >
+  > 3. PCI I/O区域的范围是[PCI_IO_START, PCI_IO_END]，长度是16MB，结束地址是PCI_IO_END = (VMEMMAP_START - 2MB)。
+  >
+  >    ​       外围组件互联（Peripheral Component Interconnect, PCI）是一种总线标准，PCI I/O区域是PCI设备的I/O地址空间。
+  >
+  > 4. 固定映射区域的范围是[FIXADDR_START, FIXADDR_TOP]，长度是IXADDR_SIZE，结束地址是FIXADDR_TOP = (PCI_IO_START - 2MB)。
+  >
+  >    ​       固定地址是编译时的特殊虚拟地址，编译的时候是一个常量，在内核初始化的时候映射到物理地址。
+  >
+  > 5. vmalloc区域的范围是[VMALLOC_START, VMALLOC_END]，起始地址VMALLOC_START，等于内核模块区域的结束地址MODULES_END，结束地址VMALLOC_END = (PAGE_OFFSET - PUD_SIZE - VMEMMAP_SIZE - 64KB)，其中PUD_SIZE是页上级目录表项映射的地址空间的长度。
+  >
+  >    ​       vmalloc区域是函数vmalloc使用的虚拟地址空间，内核使用vmalloc分配虚拟地址连续但物理地址不连续的内存。
+  >
+  >    ​       内核镜像在vmalloc区域，起始虚拟地址是(KIMAGE_VADDR + TEXT_OFFSET)，其中KIMAGE_VADDR是内核镜像的虚拟地址的基准值，等于内核模块区域的结束地址MODULES_END，TEXT_OFFSET是内存中的内核镜像相对内存其实位置的偏移。
+  >
+  > 6. 内核模块区域的范围是[MODULES_ADDR, MODULES_END]，长度是128M，起始地址MODULES_ADDR = (内核虚拟地址空间的其实地址 + KASAN影子区域的长度)。
+  >
+  >    ​       内核模块区域是内核模块使用的虚拟地址空间。
+  >
+  > 7. KASAN影子区域的起始地址是内核虚拟地址空间的起始地址，长度是内核虚拟地址空间的1/8。
+  >
+  >    ​       内核地址消毒剂（Kernel Address SANitizer，KASAN）是一个动态的内存错误检查工具。它为发现释放后使用和越界访问这两类缺陷提供了快速和综合的解决方案。
 
