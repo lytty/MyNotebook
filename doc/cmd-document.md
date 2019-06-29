@@ -346,6 +346,7 @@
 
 33. windows10 启动opengrok 
 - java -Xmx524m -jar C:\opengrok\lib\opengrok.jar -W "C:\opengrok\data\configuration.xml" -c C:\ctags\ctags.exe -P -S -v -s "C:\opengrok\source" -d "C:\opengrok\data"
+- java -Xmx524m -jar "G:\\opengrok-1.2.8\\lib\\opengrok.jar" -W "G:\\opengrok-1.2.8\\data\\configuration.xml" -c "C:\\Program Files\\opengrok\\ctags\\ctags.exe" -P -S -v -s "G:\\opengrok-1.2.8\\source" -d "G:\\opengrok-1.2.8\\data"
 - 启动tomcat bin中的startup.bat
 
 34. ubuntu 启动opengrok
