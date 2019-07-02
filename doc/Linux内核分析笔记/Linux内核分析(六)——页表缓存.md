@@ -1,16 +1,11 @@
 # Linux内核分析(六)——页表缓存
 
 - 处理器的内存管理单元（Memory Management Unit，MMU）负责把虚拟地址转换成物理地址，为了改进虚拟地址转换成物理地址的转换速度，避免每次转换都需要查询内存中的页表，处理器厂商在内存管理单元里面增加了一个称为TLB（Translation Lookaside Buffer）的高速缓存，TLB直译为转换后备缓冲区，意译为页表缓存。
-
 - 页表缓存用来缓存最近使用过的页表项，有些处理器使用两级页表缓存；第一级TLB分为指令TLB和数据TLB，优点是取指令和取数据可以并行执行；第二级TLB是统一TLB（Unified TLB），即指令和数据共用的TLB。
-
-  
 
 ## 1.  TLB表项格式
 
 - 不同处理器架构的TLB表项的格式不同。ARM64处理器的每条TLB表项不仅包含虚拟地址和物理地址，也包含属性；内存类型、缓存策略、访问权限、地址空间标识符（Address Space Identifier，ASID）和虚拟机标识符（Virtual Machine Identifier，VMID）。地址空间标识符区分不同进程的页表项，虚拟机标识符区分不同虚拟机的页表项。
-
-  
 
 ## 2. TLB管理
 
@@ -135,5 +130,12 @@
   >
   >    > 1. 指令dsb中的字段ish换成了nsh，nsh是非共享（non-shareable），表示数据同步屏障指令仅仅在当前核起作用。
   >    > 2. 指令tlbi没有携带is，表示仅仅使当前核的TLB表示失效。
-  >
-  >    
+
+
+
+## 3. 地址空间标识符ASID
+
+- 为了减少在进程切换时清空页表缓存的需要，ARM64处理器的页表缓存使用非全局位（not global，nG）区分内核和进程的页表项（nG位为0表示内核的页表项），使用地址空间标识符（Address Space Identifier，ASID）区分不同进程的页表项。
+- ARM64处理器的ASID长度是由具体实现的，可以选择8位、16位，寄存器ID_AA64MMFR0_EL1（AArch64内存模型特性寄存器0，AArch64 Memory Model Feature Register 0）的字段ASIDBits存放处理器支持的ASID长度。如果具体实现支持16位ASID，那么可以使用寄存器TCR_EL1（转换控制寄存器，Translation Control Register）的AS（ASID Size）位控制实际使用的ASID长度。如果把AS设置为0，表示使用8位ASID，否则表示使用16位ASID。
+- 寄存器 TTBR0_EL1（转换表基准寄存器 0，Translation Table Base Register 0）或 TTBR1_EL1都可以用来存放当前进程的ASID，寄存器 TCR_EL1 的A1位决定使用哪个寄存器存放当前进程的ASID，通常使用寄存器 TTBR0_EL1。寄存器 TTBR0_EL1 的位[63:48]存放当前进程的ASID（如果使用8位ASID，那么寄存器 TTBR0_EL1 的位[63:56]是保留位），位[47:1]存放当前进程的页全局目录的物理地址。
+- 在SMP系统中，ARM64架构要求ASID在处理器的所有核上是唯一的。
