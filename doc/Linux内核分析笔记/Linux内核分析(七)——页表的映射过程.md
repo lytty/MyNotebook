@@ -149,4 +149,73 @@
     以上便是整个`map_desc`数据结构，其完整地描述了一个内存区间。
 
 - create_mapping
-  1. `create_mapping()`函数就是为一个给定的内存区间建立页面映射，其定义如下：
+
+  1. `create_mapping()`函数就是为一个给定的内存区间建立页面映射，其上层调用流程为：
+
+     其定义如下：
+
+     ```c
+     /* linux-4.14/arch/arm/mm/mmu.c */
+     911  static void __init __create_mapping(struct mm_struct *mm, struct map_desc *md,
+     912  				    void *(*alloc)(unsigned long sz),
+     913  				    bool ng)
+     914  {
+     915  	unsigned long addr, length, end;
+     916  	phys_addr_t phys;
+     917  	const struct mem_type *type;
+     918  	pgd_t *pgd;
+     919  
+     920  	type = &mem_types[md->type];
+     921  
+     922  #ifndef CONFIG_ARM_LPAE
+     923  	/*
+     924  	 * Catch 36-bit addresses
+     925  	 */
+     926  	if (md->pfn >= 0x100000) {
+     927  		create_36bit_mapping(mm, md, type, ng);
+     928  		return;
+     929  	}
+     930  #endif
+     931  
+     932  	addr = md->virtual & PAGE_MASK;
+     933  	phys = __pfn_to_phys(md->pfn);
+     934  	length = PAGE_ALIGN(md->length + (md->virtual & ~PAGE_MASK));
+     935  
+     936  	if (type->prot_l1 == 0 && ((addr | phys | length) & ~SECTION_MASK)) {
+     937  		pr_warn("BUG: map for 0x%08llx at 0x%08lx can not be mapped using pages, ignoring.\n",
+     938  			(long long)__pfn_to_phys(md->pfn), addr);
+     939  		return;
+     940  	}
+     941  
+     942  	pgd = pgd_offset(mm, addr);
+     943  	end = addr + length;
+     944  	do {
+     945  		unsigned long next = pgd_addr_end(addr, end);
+     946  
+     947  		alloc_init_pud(pgd, addr, next, phys, type, alloc, ng);
+     948  
+     949  		phys += next - addr;
+     950  		addr = next;
+     951  	} while (pgd++, addr != end);
+     952  }
+     ...
+     961  static void __init create_mapping(struct map_desc *md)
+     962  {
+     963  	if (md->virtual != vectors_base() && md->virtual < TASK_SIZE) {
+     964  		pr_warn("BUG: not creating mapping for 0x%08llx at 0x%08lx in user region\n",
+     965  			(long long)__pfn_to_phys((u64)md->pfn), md->virtual);
+     966  		return;
+     967  	}
+     968  
+     969  	if ((md->type == MT_DEVICE || md->type == MT_ROM) &&
+     970  	    md->virtual >= PAGE_OFFSET && md->virtual < FIXADDR_START &&
+     971  	    (md->virtual < VMALLOC_START || md->virtual >= VMALLOC_END)) {
+     972  		pr_warn("BUG: mapping for 0x%08llx at 0x%08lx out of vmalloc space\n",
+     973  			(long long)__pfn_to_phys((u64)md->pfn), md->virtual);
+     974  	}
+     975  
+     976  	__create_mapping(&init_mm, md, early_alloc, false);
+     977  }
+     ```
+
+     
