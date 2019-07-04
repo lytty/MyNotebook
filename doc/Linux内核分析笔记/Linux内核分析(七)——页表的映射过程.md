@@ -21,7 +21,7 @@
 ### 1.3 页面映射的实现
 - 相关宏设置
 
-    ```c
+  ```c
   /* linux-4.14/arch/arm/include/asm/pgtable-2level.h */
   
   81  /*
@@ -36,6 +36,8 @@
   90  #define PGDIR_SIZE        (1UL << PGDIR_SHIFT)
   91  #define PGDIR_MASK        (~(PGDIR_SIZE-1))
   ```
+
+  PMD_SIZE 宏用于计算由页中间目录的一个单独表项所映射的区域大小;PGDIR_SIZE宏用于计算页全局目录中一个单独表项所能映射区域的大小。
 
   PGDIR_SHIFT和PMD_SHIFT都被设置成了21，而ARM32架构中一级页表PGD的偏移量应该是20，关于这个问题，后文会具体解释，此处暂时忽略。
 
@@ -150,7 +152,7 @@
 
 - create_mapping
 
-  1. `create_mapping()`函数就是为一个给定的内存区间建立页面映射，其上层调用流程为：
+  1. `create_mapping()`函数就是为一个给定的内存区间建立页面映射，其上层调用流程为：`start_kernel()->setup_arch()->paging_init()->map_lowmem()->create_mapping()`，具体调用细节，感兴趣的可以在代码中进行跟踪，此处不做详细
 
      其定义如下：
 
