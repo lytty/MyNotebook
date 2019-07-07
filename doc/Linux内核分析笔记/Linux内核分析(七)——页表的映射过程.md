@@ -477,6 +477,7 @@
 319  				 int flags)
 320  {
 321  	unsigned long addr, length, end, next;
+    	/* 通过pgd_offset_raw 函数获取pgd页面目录表项 */
 322  	pgd_t *pgd = pgd_offset_raw(pgdir, virt);
 323  
 324  	/*
@@ -498,5 +499,74 @@
 340  		phys += next - addr;
 341  	} while (pgd++, addr = next, addr != end);
 342  }
+```
+
+第322行，ARM64 PGD 的表项通过 pgd_offset_raw() 宏来获取，其定义：
+
+```c
+/* linux-4.14/arch/arm64/include/asm/pgtable.h */
+557  /* to find an entry in a page-table-directory */
+558  #define pgd_index(addr)	(((addr) >> PGDIR_SHIFT) & (PTRS_PER_PGD - 1))
+559  
+560  #define pgd_offset_raw(pgd, addr)	((pgd) + pgd_index(addr))
+```
+
+相关宏定义如下：
+
+```c
+[linux-4.14/arch/arm64/include/asm/pgtable-hwdef.h]
+
+35  #define ARM64_HW_PGTABLE_LEVELS(va_bits) (((va_bits) - 4) / (PAGE_SHIFT - 3))
+50  #define ARM64_HW_PGTABLE_LEVEL_SHIFT(n)	((PAGE_SHIFT - 3) * (4 - (n)) + 3)
+51  
+52  #define PTRS_PER_PTE		(1 << (PAGE_SHIFT - 3))
+53  
+54  /*
+55   * PMD_SHIFT determines the size a level 2 page table entry can map.
+56   */
+57  #if CONFIG_PGTABLE_LEVELS > 2
+58  #define PMD_SHIFT		ARM64_HW_PGTABLE_LEVEL_SHIFT(2)
+59  #define PMD_SIZE		(_AC(1, UL) << PMD_SHIFT)
+60  #define PMD_MASK		(~(PMD_SIZE-1))
+61  #define PTRS_PER_PMD		PTRS_PER_PTE
+62  #endif
+63  
+64  /*
+65   * PUD_SHIFT determines the size a level 1 page table entry can map.
+66   */
+67  #if CONFIG_PGTABLE_LEVELS > 3
+68  #define PUD_SHIFT		ARM64_HW_PGTABLE_LEVEL_SHIFT(1)
+69  #define PUD_SIZE		(_AC(1, UL) << PUD_SHIFT)
+70  #define PUD_MASK		(~(PUD_SIZE-1))
+71  #define PTRS_PER_PUD		PTRS_PER_PTE
+72  #endif
+73  
+74  /*
+75   * PGDIR_SHIFT determines the size a top-level page table entry can map
+76   * (depending on the configuration, this level can be 0, 1 or 2).
+77   */
+78  #define PGDIR_SHIFT		ARM64_HW_PGTABLE_LEVEL_SHIFT(4 - CONFIG_PGTABLE_LEVELS)
+79  #define PGDIR_SIZE		(_AC(1, UL) << PGDIR_SHIFT)
+80  #define PGDIR_MASK		(~(PGDIR_SIZE-1))
+81  #define PTRS_PER_PGD		(1 << (VA_BITS - PGDIR_SHIFT))
+```
+
+PAGE_SHIFT 根据页的大小来定的，如4K（2^12）大小的页，其PAGE_SHIFT 为12，va_bits 为48，ARM64_HW_PGTABLE_LEVELS 为映射页表的级数，通过以上计算，该值为4，即4级页表，那么通过计算可以得到 PGDIR_SHIFT = 39，PUD_SHIFT = 30，PMD_SHIFT = 21。每级页表的页表项数目分别用PTRS_PER_PGD、PTRS_PER_PUD、PTRS_PER_PMD 和 PTRS_PER_PTE 来表示，都等于 512。PGDIR_SIZE 宏表示一个PGD页表项能覆盖的内存范围大小为512GB。PUD_SIZE 等于 1GB，PMD_SIZE 等于 2MB， PAGE_SIZE等于 4KB。
+
+
+
+继续分析 __create_pgd_mapping() 函数第322行，调用pgd_offset_raw 的参数 pgdir 是从 paging_init() 函数中传递下来的，如下：
+
+```c
+/* linux-4.14/arch/arm64/mm/mmu.c */
+622  void __init paging_init(void)
+623  {
+624  	phys_addr_t pgd_phys = early_pgtable_alloc();
+625  	pgd_t *pgd = pgd_set_fixmap(pgd_phys);
+626  
+627  	map_kernel(pgd);
+628  	map_mem(pgd);
+    	...
+	 }
 ```
 
