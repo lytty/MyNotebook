@@ -468,6 +468,8 @@
 
 虚拟地址的一些前期检查在 map_mem() 函数中实现，此处不再详述。
 
+- __create_pgd_mapping
+
 ```c
 /* linux-4.14/arch/arm64/mm/mmu.c */
 315  static void __create_pgd_mapping(pgd_t *pgdir, phys_addr_t phys,
@@ -492,6 +494,7 @@
 333  	length = PAGE_ALIGN(size + (virt & ~PAGE_MASK));
 334  
 335  	end = addr + length;
+    	/* 以PGDIR_SIZE为步长遍历内存区域[addr, end],然后调用alloc_init_pud（）来初始化PGD页表项内容和下一级页表PUD。pgd_addr_end以PGDIR_SIZE为步长。 */
 336  	do {
 337  		next = pgd_addr_end(addr, end);
 338  		alloc_init_pud(pgd, addr, next, phys, prot, pgtable_alloc,
@@ -569,4 +572,224 @@ PAGE_SHIFT 根据页的大小来定的，如4K（2^12）大小的页，其PAGE_S
     	...
 	 }
 ```
+
+
+
+- alloc_init_pud
+
+```c
+[linux-4.14/arch/arm64/mm/mmu.c]
+
+267  static void alloc_init_pud(pgd_t *pgd, unsigned long addr, unsigned long end,
+268  				  phys_addr_t phys, pgprot_t prot,
+269  				  phys_addr_t (*pgtable_alloc)(void),
+270  				  int flags)
+271  {
+272  	pud_t *pud;
+273  	unsigned long next;
+274  
+275  	if (pgd_none(*pgd)) {
+276  		phys_addr_t pud_phys;
+277  		BUG_ON(!pgtable_alloc);
+278  		pud_phys = pgtable_alloc();
+279  		__pgd_populate(pgd, pud_phys, PUD_TYPE_TABLE);
+280  	}
+281  	BUG_ON(pgd_bad(*pgd));
+282  
+283  	pud = pud_set_fixmap_offset(pgd, addr);
+284  	do {
+285  		pud_t old_pud = *pud;
+286  
+287  		next = pud_addr_end(addr, end);
+288  
+289  		/*
+290  		 * For 4K granule only, attempt to put down a 1GB block
+291  		 */
+292  		if (use_1G_block(addr, next, phys) &&
+293  		    (flags & NO_BLOCK_MAPPINGS) == 0) {
+294  			pud_set_huge(pud, phys, prot);
+295  
+296  			/*
+297  			 * After the PUD entry has been populated once, we
+298  			 * only allow updates to the permission attributes.
+299  			 */
+300  			BUG_ON(!pgattr_change_is_safe(pud_val(old_pud),
+301  						      pud_val(*pud)));
+302  		} else {
+303  			alloc_init_cont_pmd(pud, addr, next, phys, prot,
+304  					    pgtable_alloc, flags);
+305  
+306  			BUG_ON(pud_val(old_pud) != 0 &&
+307  			       pud_val(old_pud) != pud_val(*pud));
+308  		}
+309  		phys += next - addr;
+310  	} while (pud++, addr = next, addr != end);
+311  
+312  	pud_clear_fixmap();
+313  }
+```
+
+> 1. 通过 pgd_none() 判断当前 PGD 表项内容是否为空。如果 PGD 表项内容为空，说明下一级页表为空，那么需要动态分配下一级页表。下一级页表 PUD 一共有 PTRS_PER_PUD 个页表项，即 512 个表项，然后通过 __pgd_populate() 把刚分配的 PUD 页表设置到相应的PGD 页表项中。
+> 2. 通过 pud_set_fixmap_offset() 来获取相应的 PUD 表项。最终使用虚拟地址的 bit[38~30]位来做索引值。
+> 3. 接下来以 PUD_SIZE （即 1 << 30, 1GB）为步长，通过while循环来设置下一级页表。
+> 4. use_1G_block() 函数会判断是否使用 1GB 大小的 block 来映射，当这里要映射的内存块大小正好是 PUD_SIZE ，那么只需要映射到 PUD 就好了，接下来的 PMD 和 PTE 页表等到真正需要使用时再映射，通过 pud_set_huge() 函数来设置相应的 PUD 表项。
+> 5. 如果 use_1G_block() 函数判断不能通过 1GB 大小来映射，那么就需要调用 alloc_init_cont_pmd() 函数来进行下一级页表的映射。
+
+
+
+- alloc_init_cont_pmd
+
+```c
+[linux-4.14/arch/arm64/mm/mmu.c]
+
+220  static void alloc_init_cont_pmd(pud_t *pud, unsigned long addr,
+221  				unsigned long end, phys_addr_t phys,
+222  				pgprot_t prot,
+223  				phys_addr_t (*pgtable_alloc)(void), int flags)
+224  {
+225  	unsigned long next;
+226  
+227  	/*
+228  	 * Check for initial section mappings in the pgd/pud.
+229  	 */
+230  	BUG_ON(pud_sect(*pud));
+231  	if (pud_none(*pud)) {
+232  		phys_addr_t pmd_phys;
+233  		BUG_ON(!pgtable_alloc);
+234  		pmd_phys = pgtable_alloc();
+235  		__pud_populate(pud, pmd_phys, PUD_TYPE_TABLE);
+236  	}
+237  	BUG_ON(pud_bad(*pud));
+238  
+239  	do {
+240  		pgprot_t __prot = prot;
+241  
+242  		next = pmd_cont_addr_end(addr, end);
+243  
+244  		/* use a contiguous mapping if the range is suitably aligned */
+245  		if ((((addr | next | phys) & ~CONT_PMD_MASK) == 0) &&
+246  		    (flags & NO_CONT_MAPPINGS) == 0)
+247  			__prot = __pgprot(pgprot_val(prot) | PTE_CONT);
+248  
+249  		init_pmd(pud, addr, next, phys, __prot, pgtable_alloc, flags);
+250  
+251  		phys += next - addr;
+252  	} while (addr = next, addr != end);
+253  }
+
+183  static void init_pmd(pud_t *pud, unsigned long addr, unsigned long end,
+184  		     phys_addr_t phys, pgprot_t prot,
+185  		     phys_addr_t (*pgtable_alloc)(void), int flags)
+186  {
+187  	unsigned long next;
+188  	pmd_t *pmd;
+189  
+190  	pmd = pmd_set_fixmap_offset(pud, addr);
+191  	do {
+192  		pmd_t old_pmd = *pmd;
+193  
+194  		next = pmd_addr_end(addr, end);
+195  
+196  		/* try section mapping first */
+197  		if (((addr | next | phys) & ~SECTION_MASK) == 0 &&
+198  		    (flags & NO_BLOCK_MAPPINGS) == 0) {
+199  			pmd_set_huge(pmd, phys, prot);
+200  
+201  			/*
+202  			 * After the PMD entry has been populated once, we
+203  			 * only allow updates to the permission attributes.
+204  			 */
+205  			BUG_ON(!pgattr_change_is_safe(pmd_val(old_pmd),
+206  						      pmd_val(*pmd)));
+207  		} else {
+208  			alloc_init_cont_pte(pmd, addr, next, phys, prot,
+209  					    pgtable_alloc, flags);
+210  
+211  			BUG_ON(pmd_val(old_pmd) != 0 &&
+212  			       pmd_val(old_pmd) != pmd_val(*pmd));
+213  		}
+214  		phys += next - addr;
+215  	} while (pmd++, addr = next, addr != end);
+216  
+217  	pmd_clear_fixmap();
+218  }
+```
+
+alloc_init_cont_pmd() 函数用于配置 PMD 页表：
+
+> 1. 首先通过 pud_none() 判断当前 PUD 表项内容是否为空。如果 PUD 表项内容为空，说明下一级页表为空，那么需要动态分配下一级页表。下一级页表 PMD 一共有 PTRS_PER_PMD 个页表项，即 512 个表项，然后通过 __pud_populate() 把刚分配的 PMD 页表设置到相应的PUD 页表项中。
+> 2. 调用 init_pmd() 函数，在  init_pmd() 函数中， 通过 pmd_set_fixmap_offset() 来获取相应的 PMD 表项。最终使用虚拟地址的 bit[29~21]位来做索引值。
+> 3. 接下来以 PMD_SIZE （即 1 << 21,  2MB）为步长，通过while循环来设置下一级页表。
+> 4. 如果虚拟区间的开始地址addr和结束地址next，以及物理地址 phys 都与 SECTION_SIZE (2MB) 大小对齐，那么直接设置PMD页表项，不需要映射下一级页表。下一级页表等到需要用时再映射也来得及，所以这里直接通过 pmd_set_huge() 设置 PMD 页表项。
+> 5. 如果映射的内存不是和 SECTION_SIZE  对齐的，那么需要通过 alloc_init_cont_pte() 函数来映射下一级 PTE 页表。
+
+
+
+- alloc_init_cont_pte
+
+```c
+[linux-4.14/arch/arm64/mm/mmu.c]
+
+150  static void alloc_init_cont_pte(pmd_t *pmd, unsigned long addr,
+151  				unsigned long end, phys_addr_t phys,
+152  				pgprot_t prot,
+153  				phys_addr_t (*pgtable_alloc)(void),
+154  				int flags)
+155  {
+156  	unsigned long next;
+157  
+158  	BUG_ON(pmd_sect(*pmd));
+159  	if (pmd_none(*pmd)) {
+160  		phys_addr_t pte_phys;
+161  		BUG_ON(!pgtable_alloc);
+162  		pte_phys = pgtable_alloc();
+163  		__pmd_populate(pmd, pte_phys, PMD_TYPE_TABLE);
+164  	}
+165  	BUG_ON(pmd_bad(*pmd));
+166  
+167  	do {
+168  		pgprot_t __prot = prot;
+169  
+170  		next = pte_cont_addr_end(addr, end);
+171  
+172  		/* use a contiguous mapping if the range is suitably aligned */
+173  		if ((((addr | next | phys) & ~CONT_PTE_MASK) == 0) &&
+174  		    (flags & NO_CONT_MAPPINGS) == 0)
+175  			__prot = __pgprot(pgprot_val(prot) | PTE_CONT);
+176  
+177  		init_pte(pmd, addr, next, phys, __prot);
+178  
+179  		phys += next - addr;
+180  	} while (addr = next, addr != end);
+181  }
+
+127  static void init_pte(pmd_t *pmd, unsigned long addr, unsigned long end,
+128  		     phys_addr_t phys, pgprot_t prot)
+129  {
+130  	pte_t *pte;
+131  
+132  	pte = pte_set_fixmap_offset(pmd, addr);
+133  	do {
+134  		pte_t old_pte = *pte;
+135  
+136  		set_pte(pte, pfn_pte(__phys_to_pfn(phys), prot));
+137  
+138  		/*
+139  		 * After the PTE entry has been populated once, we
+140  		 * only allow updates to the permission attributes.
+141  		 */
+142  		BUG_ON(!pgattr_change_is_safe(pte_val(old_pte), pte_val(*pte)));
+143  
+144  		phys += PAGE_SIZE;
+145  	} while (pte++, addr += PAGE_SIZE, addr != end);
+146  
+147  	pte_clear_fixmap();
+148  }
+```
+
+PTE 页表是 4 级页表的最后一级， alloc_init_cont_pte() 配置 PTE 页表项。
+
+> 1. 首先通过 pmd_none() 判断当前 PMD 表项内容是否为空。如果 PMD 表项内容为空，说明下一级页表为空，那么需要动态分配 PTRS_PER_PTE 个页表项，即 512 个表项，然后通过 __pmd_populate() 把刚分配的 PTE 页表设置到相应的PMD 页表项中。
+> 2. 调用 init_pte() 函数，在  init_pte() 函数中， 通过 pte_set_fixmap_offset() 来获取相应的 PTE 表项。最终使用虚拟地址的 bit[20~12]位来做索引值。
+> 3. 接下来以 PAG_SIZE （即 1 << 12,  4kB）为步长，通过while循环来设置PTE页表项。
 
