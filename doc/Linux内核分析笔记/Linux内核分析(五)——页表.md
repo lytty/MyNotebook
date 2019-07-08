@@ -203,3 +203,199 @@
   > 10. 第6~7位：AP[2 ：1]（Data Access Permission，数据访问权限），在阶段1 转换中，AP[2]用来选择只读或读写，1 表示只读，0 表示读写；AP[1] 用来选择是否允许异常级别 0 访问，1 表示允许异常级别 0 访问，0 表示不允许异常级别 0 访问。在非安全异常级别 1 和 0 转换机制的阶段 2 转换中， AP[2 ：1] 为 00 表示不允许访问，01 表示只读，10 表示只写， 11 表示读写。
   > 11. 第5位：非安全（Non-Secure，NS）。对于安全状态的内存访问，指定输出地址在安全地址映射还是非安全地址映射。
   > 12. 第2~4位：内存属性索引（memory attributes index，AttrIndex），指定及寄存器MAIR_ELx中内存属性字段的索引，内存属性间接寄存器（Memory Attribute Indirection Register，MAIR_ELx）有8个8位内存属性字段：`Attr<n>`，n等于 0~7。
+
+## 6. 内核页表初始化
+
+- 本章节基于arm32架构的Linux4.14内核展开分析。
+
+- 在内核使用内存前，需要初始化内核的页表，初始化页表主要在`map_lowmem()`中，在映射页表之前，需要把页表的表项清零，主要在`prepare_page_table()`函数中实现。
+
+- 函数调用关系：`start_kernel()->setup_arch()->paging_init()->prepare_page_table()`
+
+- `prepare_page_table()`函数定义及解析如下：
+
+  ```c
+  [linux-4.14/arch/arm/mm/mmu.c]
+  
+  1246  static inline void prepare_page_table(void)
+  1247  {
+  1248  	unsigned long addr;
+  1249  	phys_addr_t end;
+  1250  
+  1251  	/*
+  1252  	 * Clear out all the mappings below the kernel image.
+  		 * 通过前两个 for 循环，将用户空间的所有页表项清零。
+  1253  	 */
+      	/* 第一个for循环，将 0~MODULES_VADDR-1 范围内的页表项清零，MODULES_VADDR 为用户空间modules 起始地址（arm32架构下其值一般为 0xbf00 0000）,可参考《虚拟地址空间布局》章节*/
+  1254  	for (addr = 0; addr < MODULES_VADDR; addr += PMD_SIZE)
+  1255  		pmd_clear(pmd_off_k(addr));
+  1256  
+  1257  #ifdef CONFIG_XIP_KERNEL
+  1258  	/* The XIP kernel is mapped in the module area -- skip over it */
+  1259  	addr = ((unsigned long)_exiprom + PMD_SIZE - 1) & PMD_MASK;
+  1260  #endif
+      	/* 第二个for循环，将 MODULES_VADDR-1 ~ PAGE_OFFSET-1 范围内的页表项清零， PAGE_OFFSET为内核空间起始地址。*/
+  1261  	for ( ; addr < PAGE_OFFSET; addr += PMD_SIZE)
+  1262  		pmd_clear(pmd_off_k(addr));
+  1263  
+  1264  	/*
+  1265  	 * Find the end of the first block of lowmem.
+  1266  	 */
+      	/* 以ARM Vexpress平台为例，单步调试打印memblock.memory.regions[0].base值为0x60000000，memblock.memory.regions[0].size值为0x40000000,也就是说memblock.memory.regions[0]中存放的是内核内存的物理起始地址和大小。
+          * arm_lowmem_limit 为低端地址空间的物理地址，ARM Vexpress平台下，该值为0x8f800000
+          */
+  1267  	end = memblock.memory.regions[0].base + memblock.memory.regions[0].size;
+  1268  	if (end >= arm_lowmem_limit)
+  1269  		end = arm_lowmem_limit;
+  1270  
+  1271  	/*
+  1272  	 * Clear out all the kernel space mappings, except for the first
+  1273  	 * memory bank, up to the vmalloc region.
+  1274  	 */
+	    	/* 将 arm_lowmem_limit（转化后的虚拟地址） ~ VMALLOC_START-1 范围内的页表项（参考《虚拟地址空间布局》章节，该部分虚拟地址范围 0xef800000 ~ 0xf0000000, 8M大小）清零*/
+  1275  	for (addr = __phys_to_virt(end);
+  1276  	     addr < VMALLOC_START; addr += PMD_SIZE)
+  1277  		pmd_clear(pmd_off_k(addr));
+  1278  }
+  
+  
+  [linux-4.14/arch/arm/mm/mm.h]
+  37  static inline pmd_t *pmd_off_k(unsigned long virt)
+  38  {
+      	/* 通过给定的虚拟地址，获取pmd页表目录页表项 */
+  39  	return pmd_offset(pud_offset(pgd_offset_k(virt), virt), virt);
+  40  }
+  
+  
+  [linux-4.14/arch/arm/include/asm/pgtable-2level.h]
+  205  #define pmd_clear(pmdp)			\
+  206  	do {				\
+  207  		pmdp[0] = __pmd(0);	\
+  208  		pmdp[1] = __pmd(0);	\
+  			/* clean_pmd_entry()函数 刷新页表对应的TLB */
+  209  		clean_pmd_entry(pmdp);	\
+  210  	} while (0)
+  
+  [linux-4.14/arch/arm/include/asm/tlbflush.h]
+  /* 刷新页表缓存，此处不作细讲 */
+  591  static inline void clean_pmd_entry(void *pmd)
+  592  {
+  593  	const unsigned int __tlb_flag = __cpu_tlb_flags;
+  594  
+  595  	tlb_op(TLB_DCLEAN, "c7, c10, 1	@ flush_pmd", pmd);
+  596  	tlb_l2_op(TLB_L2CLEAN_FR, "c15, c9, 1  @ L2 flush_pmd", pmd);
+  597  }
+  
+  ```
+  
+  
+
+## 7. 内核页表创建
+
+- map_lowmem() 函数定义及解析：
+
+```c
+[linux-4.14/arch/arm/include/asm/pgtable-2level.h]
+96  #define SECTION_SHIFT		20
+97  #define SECTION_SIZE		(1UL << SECTION_SHIFT)
+98  #define SECTION_MASK		(~(SECTION_SIZE-1))
+
+[linux-4.14/arch/arm/include/asm/memory.h]
+121  #ifdef CONFIG_XIP_KERNEL
+122  #define KERNEL_START		_sdata
+123  #else
+124  #define KERNEL_START		_stext
+125  #endif
+126  #define KERNEL_END		_end
+127  
+
+[linux-4.14/include/linux/kernel.h]
+86  #define __round_mask(x, y) ((__typeof__(x))((y)-1))
+87  #define round_up(x, y) ((((x)-1) | __round_mask(x, y))+1)
+88  #define round_down(x, y) ((x) & ~__round_mask(x, y))
+ 
+[linux-4.14/include/linux/memblock.h]    
+386  #define for_each_memblock(memblock_type, region)					\
+387  	for (region = memblock.memblock_type.regions;					\
+388  	     region < (memblock.memblock_type.regions + memblock.memblock_type.cnt);	\
+389  	     region++)
+    
+[linux-4.14/arch/arm/mm/mmu.c]
+1429  static void __init map_lowmem(void)
+1430  {
+1431  	struct memblock_region *reg;
+    	/* KERNEL_START 为 _stext， ARM Vexpress平台下值为0xc0008280，SECTION_SIZE为2^20, 通过round_down宏计算，kernel_x_start值为0x60000000（物理地址）;
+        *  __init_end 值为 0xc10d8000（虚拟地址，转成物理地址：0x610d8000）,SECTION_SIZE为2^20, 通过round_up宏计算，kernel_x_end值为0x61100000（物理地址）;
+        round_down、round_up两个宏的定义上面已给出，请自行揣摩其实现的功能
+        */
+1432  	phys_addr_t kernel_x_start = round_down(__pa(KERNEL_START), SECTION_SIZE);
+1433  	phys_addr_t kernel_x_end = round_up(__pa(__init_end), SECTION_SIZE);
+1434  
+1435  	/* Map all the lowmem memory banks. */
+    	/* for_each_memblock()是一个宏，其展开式如 386~389行，此处for循环遍历memblock下memory类型 下所有的region。关于memblock相关介绍，此处不细讲，读者只需了解memblock 内存管理机制主要用于Linux Kernel 启动阶段(kernel启动 -> kernel 通用内存管理初始化完成.) 的一个临时内存分配器，其基于静态数组, 采用的逆向最先适配的分配策略.
+  		*/
+1436  	for_each_memblock(memory, reg) {
+1437  		phys_addr_t start = reg->base;
+1438  		phys_addr_t end = start + reg->size;
+1439  		struct map_desc map;
+1440  
+1441  		if (memblock_is_nomap(reg))
+1442  			continue;
+1443  
+1444  		if (end > arm_lowmem_limit)
+1445  			end = arm_lowmem_limit;
+1446  		if (start >= end)
+1447  			break;
+1448  
+1449  		if (end < kernel_x_start) {
+1450  			map.pfn = __phys_to_pfn(start);
+1451  			map.virtual = __phys_to_virt(start);
+1452  			map.length = end - start;
+1453  			map.type = MT_MEMORY_RWX;
+1454  
+1455  			create_mapping(&map);
+1456  		} else if (start >= kernel_x_end) {
+1457  			map.pfn = __phys_to_pfn(start);
+1458  			map.virtual = __phys_to_virt(start);
+1459  			map.length = end - start;
+1460  			map.type = MT_MEMORY_RW;
+1461  
+1462  			create_mapping(&map);
+1463  		} else {
+1464  			/* This better cover the entire kernel */
+1465  			if (start < kernel_x_start) {
+1466  				map.pfn = __phys_to_pfn(start);
+1467  				map.virtual = __phys_to_virt(start);
+1468  				map.length = kernel_x_start - start;
+1469  				map.type = MT_MEMORY_RW;
+1470  
+1471  				create_mapping(&map);
+1472  			}
+1473  
+1474  			map.pfn = __phys_to_pfn(kernel_x_start);
+1475  			map.virtual = __phys_to_virt(kernel_x_start);
+1476  			map.length = kernel_x_end - kernel_x_start;
+1477  			map.type = MT_MEMORY_RWX;
+1478  
+1479  			create_mapping(&map);
+1480  
+1481  			if (kernel_x_end < end) {
+1482  				map.pfn = __phys_to_pfn(kernel_x_end);
+1483  				map.virtual = __phys_to_virt(kernel_x_end);
+1484  				map.length = end - kernel_x_end;
+1485  				map.type = MT_MEMORY_RW;
+1486  
+1487  				create_mapping(&map);
+1488  			}
+1489  		}
+1490  	}
+1491  }
+```
+
+
+
+- 页表的创建是在`map_lowmem()`函数中，会从内存开始的地方覆盖到`arm_lowmem_limit`处。这里需要考虑 kernel 代码段的问题，kernel 代码段从 _stext 开始，到 _init_end 结束。这里以 ARM Vexpress 平台为例：
+
+  > 1. 内存开始地址 KERNEL_START ：0x60000000
+  > 2. __init_end : 0x60800000
+  > 3. arm_lowmem_limit : 0x8f800000

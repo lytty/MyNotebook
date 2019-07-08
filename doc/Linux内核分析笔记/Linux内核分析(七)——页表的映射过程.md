@@ -224,7 +224,7 @@
      945  		unsigned long next = pgd_addr_end(addr, end);
      946  		/* 初始化PGD页表项内容和下一级页表PUD */
      947  		alloc_init_pud(pgd, addr, next, phys, type, alloc, ng);
-  948  
+     948  
      949  		phys += next - addr;
      950  		addr = next;
      951  	} while (pgd++, addr != end);
@@ -392,7 +392,7 @@
      
      
   
-  3. ARM硬件页表映射过程如下图：![1562496066677](../picture/arm硬件页表映射过程.png)
+  3. ARM硬件页表映射过程如下图：                                  ![1562496066677](../picture/arm硬件页表映射过程.png)
   
      页表中每一项称为一个entry（也就是我们之前所说的表项），entry存放的是物理地址值，PGD entry值指向2级页表（PTE页表），PTE entry值指向物理页。
   
@@ -404,7 +404,7 @@
      >
      > 2. linux 希望PTE页表本身也是一个页表大小。参考内核代码注释：However, Linux also expects one "PTE" table per page, and at least a "dirty" bit.，但本章1.2页面映射章节中的PTE页表只有256*4 Byte=1k大小。
   
-     所以，针对以上两个问题，linux做了一些处理，使内核中实现的页表能够满足硬件要求，最终的arm页表如下图：![1562502291076](F:\MyNotebook\doc\picture\linux页表与硬件页表.png)
+     所以，针对以上两个问题，linux做了一些处理，使内核中实现的页表能够满足硬件要求，最终的arm页表如下图：                                           ![1562502291076](../picture/linux页表与硬件页表.png)
   
      如上表，解释如下：
   
