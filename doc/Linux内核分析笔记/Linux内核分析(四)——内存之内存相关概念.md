@@ -465,7 +465,149 @@
   509  } ____cacheline_internodealigned_in_smp;
   ```
 
-#### 2.3.3 物理页 page
+- 当页表的初始化（页表创建和映射）完成之后，内核就可以对内存进行管理了，但是内核并不是统一对待这些页面，而是采用区域（也有称为区块）zone 的方式来管理。
+
+- struct zone 是经常会被访问到的，因此这个数据结构要求以 L1 cache 对齐。另外，这里的 ZONE_PADDING() 是让 zone -> lock 和 zone -> lru_lock 这两个很热门的锁可以分布在不同的 cache line 中。一个内存节点最多也就几个 zone，因此 zone 数据结构不需要像 struct page 一样关注数据结构的大小，因此这里 ZONE_PADDING() 可以为了性能而浪费空间。
+
+- 在内存管理开发过程中，内核开发者逐步发现一些自旋锁会竞争的非常厉害，很难获取。像 zone -> lock 和 zone -> lru_lock 这两个锁有时需要同时获取锁，因此保证它们使用不同的 cache line 是内核常用的一种优化技巧。
+
+
+
+
+#### 2.3.3 zone初始化
+
+- zone 的初始化函数集中在 `bootmem_init()`中完成，所以需要确定每个 zone 的范围。函数调用关系：`start_kernel() -> setup_arch() -> paging_init() -> bootmem_init()`，我们从bootmem_init() 函数定义开始解析：
+
+```c
+[linux-4.14/arch/arm/mm/init.c]
+93  static void __init find_limits(unsigned long *min, unsigned long *max_low,
+94  			       unsigned long *max_high)
+95  {
+96  	*max_low = PFN_DOWN(memblock_get_current_limit());
+97  	*min = PFN_UP(memblock_start_of_DRAM());
+98  	*max_high = PFN_DOWN(memblock_end_of_DRAM());
+99  }
+
+[linux-4.14/arch/arm/mm/init.c]
+303  void __init bootmem_init(void)
+304  {
+305  	unsigned long min, max_low, max_high;
+306  	/* memblock_allow_resize 设置memblock_can_resize = 1 */
+307  	memblock_allow_resize();
+308  	max_low = max_high = 0;
+309  	/* find_limits()函数计算出min、max_low、max_high，后面会将这三个值分布赋值给			
+		 * min_low_pfn、max_low_pfn、max_pfn，其中 min_low_pfn 是内存块的开始地址的页帧号
+		 * （arm32架构下，该值为 0x60000）, max_low_pfn（0x8f800）表示 normal 区域的结束页帧
+		 * 号，它由 arm_lowmem_init 这个变量得来，max_pfn（0xa0000）是内存块的结束地址的页帧号。
+		 */
+310  	find_limits(&min, &max_low, &max_high);
+311  
+312  	early_memtest((phys_addr_t)min << PAGE_SHIFT,
+313  		      (phys_addr_t)max_low << PAGE_SHIFT);
+314  
+315  	/*
+316  	 * Sparsemem tries to allocate bootmem in memory_present(),
+317  	 * so must be done after the fixed reservations
+318  	 */
+    	/* arm 平台下，该函数什么也不做 */
+319  	arm_memory_present();
+320  
+321  	/*
+322  	 * sparse_init() needs the bootmem allocator up and running.
+323  	 */
+    	/* 对非线性内存的映射，这里与zone初始化关系不大，暂不做分析 */
+324  	sparse_init();
+325  
+326  	/*
+327  	 * Now free the memory - free_area_init_node needs
+328  	 * the sparse mem_map arrays initialized by sparse_init()
+329  	 * for memmap_init_zone(), otherwise all PFNs are invalid.
+330  	 */
+    	/*
+    	* zone 初始化主要在 zone_sizes_init() 函数内完成
+    	*/
+331  	zone_sizes_init(min, max_low, max_high);
+332  
+333  	/*
+334  	 * This doesn't seem to be used by the Linux memory manager any
+335  	 * more, but is used by ll_rw_block.  If we can get rid of it, we
+336  	 * also get rid of some of the stuff above as well.
+337  	 */
+338  	min_low_pfn = min;
+339  	max_low_pfn = max_low;
+340  	max_pfn = max_high;
+341  }
+```
+
+- zone_sizes_init() 函数定义及解析如下：
+
+``` c
+[linux-4.14/include/generated/bounds.h]
+10  #define MAX_NR_ZONES 3 /* __MAX_NR_ZONES */
+
+[linux-4.14/arch/arm/mm/init.c]
+140  static void __init zone_sizes_init(unsigned long min, unsigned long max_low,
+141  	unsigned long max_high)
+142  {
+    	/* MAX_NR_ZONES指定节点包含的zone数量，如前面定义，此处 MAX_NR_ZONES 值为3 */
+143  	unsigned long zone_size[MAX_NR_ZONES], zhole_size[MAX_NR_ZONES];
+144  	struct memblock_region *reg;
+145  
+146  	/*
+147  	 * initialise the zones.
+148  	 */
+149  	memset(zone_size, 0, sizeof(zone_size));
+150  
+151  	/*
+152  	 * The memory size has already been determined.  If we need
+153  	 * to do anything fancy with the allocation of this memory
+154  	 * to the zones, now is the time to do it.
+155  	 */
+156  	zone_size[0] = max_low - min;
+157  #ifdef CONFIG_HIGHMEM
+158  	zone_size[ZONE_HIGHMEM] = max_high - max_low;
+159  #endif
+160  
+161  	/*
+162  	 * Calculate the size of the holes.
+163  	 *  holes = node_size - sum(bank_sizes)
+164  	 */
+165  	memcpy(zhole_size, zone_size, sizeof(zhole_size));
+166  	for_each_memblock(memory, reg) {
+167  		unsigned long start = memblock_region_memory_base_pfn(reg);
+168  		unsigned long end = memblock_region_memory_end_pfn(reg);
+169  
+170  		if (start < max_low) {
+171  			unsigned long low_end = min(end, max_low);
+172  			zhole_size[0] -= low_end - start;
+173  		}
+174  #ifdef CONFIG_HIGHMEM
+175  		if (end > max_low) {
+176  			unsigned long high_start = max(start, max_low);
+177  			zhole_size[ZONE_HIGHMEM] -= end - high_start;
+178  		}
+179  #endif
+180  	}
+181  
+182  #ifdef CONFIG_ZONE_DMA
+183  	/*
+184  	 * Adjust the sizes according to any special requirements for
+185  	 * this machine type.
+186  	 */
+187  	if (arm_dma_zone_size)
+188  		arm_adjust_dma_zone(zone_size, zhole_size,
+189  			arm_dma_zone_size >> PAGE_SHIFT);
+190  #endif
+191  
+192  	free_area_init_node(0, zone_size, min, zhole_size);
+193  }
+```
+
+
+
+
+
+#### 2.3.4 物理页 page
 
 - 每个物理页对应一个page结构体，称为页描述符，内存节点的pglist_data实例的成员node_mem_map指向给内存节点包含的所有物理页的页描述符组成的数组。
 
@@ -664,18 +806,17 @@
     212  #endif
     213  }
     ```
-    
+
     下面分别解析其主要成员的意义：
     
     > flags
     
     ```c
     /* linux-4.14/include/linux/mm_types.h */
-    
     44  	unsigned long flags;		/* Atomic flags, some possibly
     45  					 * updated asynchronously */
     ```
-    
+
     1. 结构体page的成员flags的布局如下：
     
        ```
@@ -690,16 +831,17 @@
     
        ```c
        /* linux-4.14/include/linux/mm.h */
-       
+   
        900  static inline int page_to_nid(const struct page *page)
        901  {
        902  	return (page->flags >> NODES_PGSHIFT) & NODES_MASK;
        903  }
-       
+   
        788  static inline enum zone_type page_zonenum(const struct page *page)
        789  {
        790  	return (page->flags >> ZONES_PGSHIFT) & ZONES_MASK;
        791  }
+   
        ```
     
        

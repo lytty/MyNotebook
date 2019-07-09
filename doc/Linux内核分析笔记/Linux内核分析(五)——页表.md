@@ -348,43 +348,47 @@
 1447  			break;
 1448  
 1449  		if (end < kernel_x_start) {
+    			/* 用户空间的内存区间创建 */
 1450  			map.pfn = __phys_to_pfn(start);
 1451  			map.virtual = __phys_to_virt(start);
 1452  			map.length = end - start;
 1453  			map.type = MT_MEMORY_RWX;
-1454  
+1454  			/* 创建映射，create_mapping()函数在《页表的映射过程》章节中有详细解析 */
 1455  			create_mapping(&map);
 1456  		} else if (start >= kernel_x_end) {
+    			/* 内核空间（去除kernel代码段和高端地址空间）的内存区间创建 */
 1457  			map.pfn = __phys_to_pfn(start);
 1458  			map.virtual = __phys_to_virt(start);
 1459  			map.length = end - start;
 1460  			map.type = MT_MEMORY_RW;
-1461  
+1461  			/* 同上 */
 1462  			create_mapping(&map);
 1463  		} else {
 1464  			/* This better cover the entire kernel */
 1465  			if (start < kernel_x_start) {
+    				/* start ~ kernel_x_start 内存区间创建 */
 1466  				map.pfn = __phys_to_pfn(start);
 1467  				map.virtual = __phys_to_virt(start);
 1468  				map.length = kernel_x_start - start;
 1469  				map.type = MT_MEMORY_RW;
-1470  
+1470  				/* 同上 */
 1471  				create_mapping(&map);
 1472  			}
-1473  
+1473  			/* kernel_x_start ~ kernel_x_end，即kernel image 内存区间创建 */
 1474  			map.pfn = __phys_to_pfn(kernel_x_start);
 1475  			map.virtual = __phys_to_virt(kernel_x_start);
 1476  			map.length = kernel_x_end - kernel_x_start;
 1477  			map.type = MT_MEMORY_RWX;
-1478  
+1478  			/* 同上 */
 1479  			create_mapping(&map);
 1480  
 1481  			if (kernel_x_end < end) {
+    				/* kernel_x_end ~ arm_lowmem_limit 内存区间创建 */
 1482  				map.pfn = __phys_to_pfn(kernel_x_end);
 1483  				map.virtual = __phys_to_virt(kernel_x_end);
 1484  				map.length = end - kernel_x_end;
 1485  				map.type = MT_MEMORY_RW;
-1486  
+1486  				/* 同上 */
 1487  				create_mapping(&map);
 1488  			}
 1489  		}
@@ -392,10 +396,6 @@
 1491  }
 ```
 
-
-
-- 页表的创建是在`map_lowmem()`函数中，会从内存开始的地方覆盖到`arm_lowmem_limit`处。这里需要考虑 kernel 代码段的问题，kernel 代码段从 _stext 开始，到 _init_end 结束。这里以 ARM Vexpress 平台为例：
-
-  > 1. 内存开始地址 KERNEL_START ：0x60000000
-  > 2. __init_end : 0x60800000
-  > 3. arm_lowmem_limit : 0x8f800000
+- 页表的创建和映射是在`map_lowmem()`函数中，会从内存开始的地方覆盖到`arm_lowmem_limit`处。即映射整个低端地址空间。
+- MT_MEMORY_RW 和 MT_MEMORY_RWX 的区别在于 ARM 页表项有一个 XN 比特位， XN 比特位置为 1, 表示这段内存区域不允许执行。从上面代码中可以知道，只有 kernel image 内存区间的 map.type = MT_MEMORY_RWX。
+- create_mapping() 实现内存区间的映射，这里创建的映射就是物理内存直接映射，或者叫做线性映射。
