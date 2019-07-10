@@ -230,7 +230,7 @@
   >
   > 1. 在Linux内核中，所有的物理内存都用`struct page`结构体来描述，这些对象以数组形式存放，而这个数组就是mem_map。内存以节点为单位，每个节点下的物理内存统一管理，也就是说，在表示内存节点的描述类型struct pglist_data中，有node_mem_map这个成员，其针对平坦内存（CONFIG_FLAT_NODE_MEM_MAP）进行描述。
   > 2. 每个内存节点下，node_mem_map成员是此节点下所有内存以`struct page`描述后，所有这些对象的基地址，这些对象以数组形式存放。注意：成员node_mem_map可能不是指向数组的第一个元素，因为页描述符数组的大小必须对齐到2^(MAX_ORDER - 1)次方，(MAX_ORDER - 1)是页分配器可分配的最大阶数。
-  > 3. 如果系统只有一个pglist_data对象，那么此对象下的node_mem_map即为全局对象mem_map。函数`alloc_node_mem_map()`就是针对节点的node_mem_map的处理。
+  > 3. 如果系统只有一个pglist_data对象，那么此对象下的node_mem_map即为全局对象mem_map。函数`alloc_node_mem_map()`就是针对节点的node_mem_map的处理。函数`alloc_node_mem_map()`的解析可参考下文 `2.3.3 zone初始化`小节，此处不做详细解析。
 
 #### 2.3.2 内存区域 zone
 
@@ -563,8 +563,10 @@
 153  	 * to do anything fancy with the allocation of this memory
 154  	 * to the zones, now is the time to do it.
 155  	 */
+    	/* 由 bootmem_init() 函数中传递的参数（max_low=0x8f800，min=0x60000）, 可以计算出zone_size[0]=0x2f800, 即194560, 也就是说从 [内核空间的起始地址 ~ 低端地址空间的结束地址(arm_lowmem_limit)]这个范围（zone_size[0]），共包含194560个页面 */
 156  	zone_size[0] = max_low - min;
 157  #ifdef CONFIG_HIGHMEM
+    	/* 由 bootmem_init() 函数中传递的参数（max_low=0x8f800，min=0x60000， max_high=0xa0000）, 可以计算出zone_size[ZONE_HIGHMEM]=0x10800, 即67584， 也就是说内核高端地址空间（zone_size[ZONE_HIGHMEM]）中包含67584个页面, 此处 ZONE_HIGHMEM 为 1 */
 158  	zone_size[ZONE_HIGHMEM] = max_high - max_low;
 159  #endif
 160  
@@ -572,6 +574,7 @@
 162  	 * Calculate the size of the holes.
 163  	 *  holes = node_size - sum(bank_sizes)
 164  	 */
+    	/* 计算zone_size中是否有洞，即未映射页的地址空间 */
 165  	memcpy(zhole_size, zone_size, sizeof(zhole_size));
 166  	for_each_memblock(memory, reg) {
 167  		unsigned long start = memblock_region_memory_base_pfn(reg);
@@ -588,7 +591,7 @@
 178  		}
 179  #endif
 180  	}
-181  
+181  /* arm平台未定义CONFIG_ZONE_DMA，所以此#ifdef内不再解析 */
 182  #ifdef CONFIG_ZONE_DMA
 183  	/*
 184  	 * Adjust the sizes according to any special requirements for
@@ -598,12 +601,218 @@
 188  		arm_adjust_dma_zone(zone_size, zhole_size,
 189  			arm_dma_zone_size >> PAGE_SHIFT);
 190  #endif
-191  
+191  	/* zone 初始化函数在 free_area_init_node，下文继续该函数解析  */
 192  	free_area_init_node(0, zone_size, min, zhole_size);
 193  }
 ```
 
+- free_area_init_node() 函数定义及解析如下:
 
+```c
+[linux-4.14/mm/page_alloc.c]
+/*
+ * nid: 节点编号，arm架构下只有一个节点，即0
+ */
+6155  void __paginginit free_area_init_node(int nid, unsigned long *zones_size,
+6156  		unsigned long node_start_pfn, unsigned long *zholes_size)
+6157  {
+6158  	pg_data_t *pgdat = NODE_DATA(nid);
+6159  	unsigned long start_pfn = 0;
+6160  	unsigned long end_pfn = 0;
+6161  
+6162  	/* pg_data_t should be reset to zero when it's allocated */
+6163  	WARN_ON(pgdat->nr_zones || pgdat->kswapd_classzone_idx);
+6164  	/* 对 pgdat 节点相关成员赋值， 6168~6172可忽略 */
+6165  	pgdat->node_id = nid;
+6166  	pgdat->node_start_pfn = node_start_pfn;
+6167  	pgdat->per_cpu_nodestats = NULL;
+6168  #ifdef CONFIG_HAVE_MEMBLOCK_NODE_MAP
+6169  	get_pfn_range_for_nid(nid, &start_pfn, &end_pfn);
+6170  	pr_info("Initmem setup node %d [mem %#018Lx-%#018Lx]\n", nid,
+6171  		(u64)start_pfn << PAGE_SHIFT,
+6172  		end_pfn ? ((u64)end_pfn << PAGE_SHIFT) - 1 : 0);
+6173  #else
+6174  	start_pfn = node_start_pfn;
+6175  #endif
+    	/* 计算当前节点下包含的页面总数，函数实现比较简单，此处不再解析 */
+6176  	calculate_node_totalpages(pgdat, start_pfn, end_pfn,
+6177  				  zones_size, zholes_size);
+6178  	/* 为当前节点pgdat 的成员 node_mem_map 赋值，即将当前节点下所有页的基地址保存在 node_mem_map数组中，node_mem_map的含义可参考前文 内存节点node相关论述, 该函数我们下文会稍作简要叙述 */
+6179  	alloc_node_mem_map(pgdat);
+6180  #ifdef CONFIG_FLAT_NODE_MEM_MAP
+6181  	printk(KERN_DEBUG "free_area_init_node: node %d, pgdat %08lx, node_mem_map %08lx\n",
+6182  		nid, (unsigned long)pgdat,
+6183  		(unsigned long)pgdat->node_mem_map);
+6184  #endif
+6185  	/* 当 CONFIG_DEFERRED_STRUCT_PAGE_INIT 定义时， reset_deferred_meminit() 函数给 pgdat 成员变量 static_init_pgcnt 、first_deferred_pfn赋值，当CONFIG_DEFERRED_STRUCT_PAGE_INIT 未定义时，该函数什么也不做。 */
+6186  	reset_deferred_meminit(pgdat);
+    	/* zone 初始化过程 在 free_area_init_core() 函数内执行， 下文详细解析该函数。*/
+6187  	free_area_init_core(pgdat);
+6188  }
+
+/*alloc_node_mem_map() 具体来说应该属于 `2.3.1 内存节点node` 小节范围， 但为了函数上下调用关系的解析，以及理解的连贯性，我们放在此处解析 */
+6109  static void __ref alloc_node_mem_map(struct pglist_data *pgdat)
+6110  {
+6111  	unsigned long __maybe_unused start = 0;
+6112  	unsigned long __maybe_unused offset = 0;
+6113  
+6114  	/* Skip empty nodes */
+    	/* 如此内存节点内无有效的内存，直接略过 */
+6115  	if (!pgdat->node_spanned_pages)
+6116  		return;
+6117  
+6118  #ifdef CONFIG_FLAT_NODE_MEM_MAP /* 只处理平坦型内存 */
+    	/* 起始地址必须对齐，这个一般按照MB级别对齐即可。 */
+6119  	start = pgdat->node_start_pfn & ~(MAX_ORDER_NR_PAGES - 1);
+    	/* 计算偏移地址，即对齐后地址与真正开始地址之间的偏移大小 */
+6120  	offset = pgdat->node_start_pfn - start;
+6121  	/* ia64 gets its own node_mem_map, before this, without bootmem */
+    	/* 如果pgdat目前没有设置node_mem_map则对其设置 */
+6122  	if (!pgdat->node_mem_map) {
+6123  		unsigned long size, end;
+6124  		struct page *map;
+6125  
+6126  		/*
+6127  		 * The zone's endpoints aren't required to be MAX_ORDER
+6128  		 * aligned but the node_mem_map endpoints must be in order
+6129  		 * for the buddy allocator to function correctly.
+6130  		 */
+6131  		end = pgdat_end_pfn(pgdat); /* 获取节点内结束页帧号pfn */
+6132  		end = ALIGN(end, MAX_ORDER_NR_PAGES); /* 考虑对齐影响，注意这个需要向前舍入。 */
+    		/* 计算需要的数组大小，需要注意end-start是页帧个数，每个页需要一个struct page对象，
+所以，这里是乘关系，这样得到整个node内所有以page为单位描述需要占据的内存。 */
+6133  		size =  (end - start) * sizeof(struct page);
+6134  		map = alloc_remap(pgdat->node_id, size); /* alloc_remap已经废弃，不再使用 */
+6135  		if (!map)
+    			/* 通过memblock管理算法分配内存，具体分配细则，此处不再进行解析 */
+6136  			map = memblock_virt_alloc_node_nopanic(size,
+6137  							       pgdat->node_id);
+6138  		pgdat->node_mem_map = map + offset; /* 这里对最终的node_mem_map修正偏移位置。一般这个offset为0. */
+6139  	}
+6140  #ifndef CONFIG_NEED_MULTIPLE_NODES
+6141  	/*
+6142  	 * With no DISCONTIG, the global mem_map is just set as node 0's
+6143  	 */
+6144  	if (pgdat == NODE_DATA(0)) {
+    		/* 如果系统只有一个pglist_data对象，那么此对象下的node_mem_map即为全局对象mem_map */
+6145  		mem_map = NODE_DATA(0)->node_mem_map;
+6146  #if defined(CONFIG_HAVE_MEMBLOCK_NODE_MAP) || defined(CONFIG_FLATMEM)
+6147  		if (page_to_pfn(mem_map) != pgdat->node_start_pfn)
+6148  			mem_map -= offset;
+6149  #endif /* CONFIG_HAVE_MEMBLOCK_NODE_MAP */
+6150  	}
+6151  #endif
+6152  #endif /* CONFIG_FLAT_NODE_MEM_MAP */
+6153  }
+```
+
+- free_area_init_core() 函数定义及解析
+
+```c
+[linux-4.14/mm/page_alloc.c]
+6009  /*
+6010   * Set up the zone data structures:
+6011   *   - mark all pages reserved
+6012   *   - mark all memory queues empty
+6013   *   - clear the memory bitmaps
+6014   *
+6015   * NOTE: pgdat should get zeroed by caller.
+6016   */
+6017  static void __paginginit free_area_init_core(struct pglist_data *pgdat)
+6018  {
+6019  	enum zone_type j;
+6020  	int nid = pgdat->node_id;
+6021  	/* 初始化 pgdat->node_size_lock */
+6022  	pgdat_resize_init(pgdat);
+6023  #ifdef CONFIG_NUMA_BALANCING
+6024  	spin_lock_init(&pgdat->numabalancing_migrate_lock);
+6025  	pgdat->numabalancing_migrate_nr_pages = 0;
+6026  	pgdat->numabalancing_migrate_next_window = jiffies;
+6027  #endif
+6028  #ifdef CONFIG_TRANSPARENT_HUGEPAGE
+6029  	spin_lock_init(&pgdat->split_queue_lock);
+6030  	INIT_LIST_HEAD(&pgdat->split_queue);
+6031  	pgdat->split_queue_len = 0;
+6032  #endif
+    	/* 初始化 pgdat->kswapd_wait、pgdat->pfmemalloc_wait */
+6033  	init_waitqueue_head(&pgdat->kswapd_wait);
+6034  	init_waitqueue_head(&pgdat->pfmemalloc_wait);
+6035  #ifdef CONFIG_COMPACTION
+6036  	init_waitqueue_head(&pgdat->kcompactd_wait);
+6037  #endif
+6038  	pgdat_page_ext_init(pgdat);
+6039  	spin_lock_init(&pgdat->lru_lock);
+6040  	lruvec_init(node_lruvec(pgdat));
+6041  
+6042  	pgdat->per_cpu_nodestats = &boot_nodestats;
+6043  
+6044  	for (j = 0; j < MAX_NR_ZONES; j++) {
+6045  		struct zone *zone = pgdat->node_zones + j;
+6046  		unsigned long size, realsize, freesize, memmap_pages;
+6047  		unsigned long zone_start_pfn = zone->zone_start_pfn;
+6048  
+6049  		size = zone->spanned_pages;
+6050  		realsize = freesize = zone->present_pages;
+6051  
+6052  		/*
+6053  		 * Adjust freesize so that it accounts for how much memory
+6054  		 * is used by this zone for memmap. This affects the watermark
+6055  		 * and per-cpu initialisations
+6056  		 */
+6057  		memmap_pages = calc_memmap_size(size, realsize);
+6058  		if (!is_highmem_idx(j)) {
+6059  			if (freesize >= memmap_pages) {
+6060  				freesize -= memmap_pages;
+6061  				if (memmap_pages)
+6062  					printk(KERN_DEBUG
+6063  					       "  %s zone: %lu pages used for memmap\n",
+6064  					       zone_names[j], memmap_pages);
+6065  			} else
+6066  				pr_warn("  %s zone: %lu pages exceeds freesize %lu\n",
+6067  					zone_names[j], memmap_pages, freesize);
+6068  		}
+6069  
+6070  		/* Account for reserved pages */
+6071  		if (j == 0 && freesize > dma_reserve) {
+6072  			freesize -= dma_reserve;
+6073  			printk(KERN_DEBUG "  %s zone: %lu pages reserved\n",
+6074  					zone_names[0], dma_reserve);
+6075  		}
+6076  
+6077  		if (!is_highmem_idx(j))
+6078  			nr_kernel_pages += freesize;
+6079  		/* Charge for highmem memmap if there are enough kernel pages */
+6080  		else if (nr_kernel_pages > memmap_pages * 2)
+6081  			nr_kernel_pages -= memmap_pages;
+6082  		nr_all_pages += freesize;
+6083  
+6084  		/*
+6085  		 * Set an approximate value for lowmem here, it will be adjusted
+6086  		 * when the bootmem allocator frees pages into the buddy system.
+6087  		 * And all highmem pages will be managed by the buddy system.
+6088  		 */
+6089  		zone->managed_pages = is_highmem_idx(j) ? realsize : freesize;
+6090  #ifdef CONFIG_NUMA
+6091  		zone->node = nid;
+6092  #endif
+6093  		zone->name = zone_names[j];
+6094  		zone->zone_pgdat = pgdat;
+6095  		spin_lock_init(&zone->lock);
+6096  		zone_seqlock_init(zone);
+    		/* 配置 成员变量pageset */
+6097  		zone_pcp_init(zone);
+6098  
+6099  		if (!size)
+6100  			continue;
+6101  
+    		/* 当 CONFIG_HUGETLB_PAGE_SIZE_VARIABLE 被定义时，设置pageblock_order，否则该函数什么也不执行 */
+6102  		set_pageblock_order();
+6103  		setup_usemap(pgdat, zone, zone_start_pfn, size);
+6104  		init_currently_empty_zone(zone, zone_start_pfn, size);
+6105  		memmap_init(size, nid, j, zone_start_pfn);
+6106  	}
+6107  }
+```
 
 
 
@@ -831,17 +1040,17 @@
     
        ```c
        /* linux-4.14/include/linux/mm.h */
-   
+        
        900  static inline int page_to_nid(const struct page *page)
        901  {
        902  	return (page->flags >> NODES_PGSHIFT) & NODES_MASK;
        903  }
-   
+        
        788  static inline enum zone_type page_zonenum(const struct page *page)
        789  {
        790  	return (page->flags >> ZONES_PGSHIFT) & ZONES_MASK;
        791  }
-   
+        
        ```
     
        
