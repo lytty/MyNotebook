@@ -33,7 +33,7 @@ export CROSS_COMPILE=arm-linux-gnueabi-
 - 模拟4核 Cortex-A9 Versatile Express开发平台：
   
     ```shell
-    qemu-system-arm -M vexpress-a9 -smp 4 -m 1024M -kernel arch/arm/boot/zImage -append "rdinit=/linuxrc console=ttyAMA0 loglevel=8" -dtb arch/arm/boot/dts/vexpress-v2p-ca9.dtb -nographic
+    qemu-system-arm -M vexpress-a9 -smp 4 -m 1024M -kernel arch/arm/boot/zImage -append "rdinit=/linuxrc console=ttyAMA0 loglevel=8" -dtb arch/arm/boot/dts/vexpress-v2p-ca9.dtb -nographic -s -S
     ```
 
 - 关闭QEMU平台：
