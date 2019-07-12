@@ -1452,3 +1452,166 @@
   ```
 
   usemap_size() 函数首先计算 zone 有多少个 pageblock，每个 pageblock 需要 4bit (NR_PAGEBLOCK_BITS) 来存储 MIGRATE_TYPES 类型，最后可以计算出需要多少 Byte。然后通过 memblock_virt_alloc_node_nopanic() 函数来分配内存，并且 zone->pageblock_flags 成员指向这段内存。
+
+- 内核有两个函数来管理这些迁移类型：get_pageblock_migratetype() 和 set_pageblock_migratetype()。内核初始化时所有的页面最初都标记为 MIGRATE_MOVABLE 类型，具体操作在 free_area_init_core() -> memmap_init() 函数，free_area_init_core() 函数memmap_init() 函数的调用，上文已解析过，此处不再赘述，以下只对 memmap_init() 函数进行解析，如下：
+
+  ```c
+  [linux-4.14/mm/page_alloc.c]
+  5363  #define memmap_init(size, nid, zone, start_pfn) \
+  5364  	memmap_init_zone((size), (nid), (zone), (start_pfn), MEMMAP_EARLY)
+  
+  5264  /*
+  5265   * Initially all pages are reserved - free ones are freed
+  5266   * up by free_all_bootmem() once the early boot process is
+  5267   * done. Non-atomic initialization, single-pass.
+  5268   */
+  5269  void __meminit memmap_init_zone(unsigned long size, int nid, unsigned long zone,
+  5270  		unsigned long start_pfn, enum memmap_context context)
+  5271  {
+      	/* 获取altmap，根据struct vmem_altmap定义介绍，该结构体主要是为驱动预留出一块内存，所以此处获取到altmap，第5288行就需要更新start_pfn值，to_vmem_altmap()函数可自行解析。 */
+  5272  	struct vmem_altmap *altmap = to_vmem_altmap(__pfn_to_phys(start_pfn));
+  5273  	unsigned long end_pfn = start_pfn + size;
+  5274  	pg_data_t *pgdat = NODE_DATA(nid);
+  5275  	unsigned long pfn;
+  5276  	unsigned long nr_initialised = 0;
+  5277  #ifdef CONFIG_HAVE_MEMBLOCK_NODE_MAP
+  5278  	struct memblock_region *r = NULL, *tmp;
+  5279  #endif
+  5280  
+  5281  	if (highest_memmap_pfn < end_pfn - 1)
+  5282  		highest_memmap_pfn = end_pfn - 1;
+  5283  
+  5284  	/*
+  5285  	 * Honor reservation requested by the driver for this ZONE_DEVICE
+  5286  	 * memory
+  5287  	 */
+  5288  	if (altmap && start_pfn == altmap->base_pfn)
+  5289  		start_pfn += altmap->reserve;/* 更新start_pfn，保留[old start_pfn ~ altmap->reserve] 范围的页面供驱动使用。 */
+  5290  
+  5291  	for (pfn = start_pfn; pfn < end_pfn; pfn++) {
+  5292  		/*
+  5293  		 * There can be holes in boot-time mem_map[]s handed to this
+  5294  		 * function.  They do not exist on hotplugged memory.
+  5295  		 */
+  5296  		if (context != MEMMAP_EARLY)
+  5297  			goto not_early;
+  5298  
+  5299  		if (!early_pfn_valid(pfn))
+  5300  			continue;
+  5301  		if (!early_pfn_in_nid(pfn, nid))
+  5302  			continue;
+  5303  		if (!update_defer_init(pgdat, pfn, end_pfn, &nr_initialised))
+  5304  			break;
+  5305  
+  5306  #ifdef CONFIG_HAVE_MEMBLOCK_NODE_MAP
+  5307  		/*
+  5308  		 * Check given memblock attribute by firmware which can affect
+  5309  		 * kernel memory layout.  If zone==ZONE_MOVABLE but memory is
+  5310  		 * mirrored, it's an overlapped memmap init. skip it.
+  5311  		 */
+  5312  		if (mirrored_kernelcore && zone == ZONE_MOVABLE) {
+  5313  			if (!r || pfn >= memblock_region_memory_end_pfn(r)) {
+  5314  				for_each_memblock(memory, tmp)
+  5315  					if (pfn < memblock_region_memory_end_pfn(tmp))
+  5316  						break;
+  5317  				r = tmp;
+  5318  			}
+  5319  			if (pfn >= memblock_region_memory_base_pfn(r) &&
+  5320  			    memblock_is_mirror(r)) {
+  5321  				/* already initialized as NORMAL */
+  5322  				pfn = memblock_region_memory_end_pfn(r);
+  5323  				continue;
+  5324  			}
+  5325  		}
+  5326  #endif
+  5327  
+  5328  not_early:
+  5329  		/*
+  5330  		 * Mark the block movable so that blocks are reserved for
+  5331  		 * movable at startup. This will force kernel allocations
+  5332  		 * to reserve their blocks rather than leaking throughout
+  5333  		 * the address space during boot when many long-lived
+  5334  		 * kernel allocations are made.
+  5335  		 *
+  5336  		 * bitmap is created for zone's valid pfn range. but memmap
+  5337  		 * can be created for invalid pages (for alignment)
+  5338  		 * check here not to call set_pageblock_migratetype() against
+  5339  		 * pfn out of zone.
+  5340  		 */
+      		/* 每间隔 pageblock_nr_pages（1024）个页，设置一次migratetype */
+  5341  		if (!(pfn & (pageblock_nr_pages - 1))) {
+  5342  			struct page *page = pfn_to_page(pfn);
+  5343  			/* __init_single_page() 函数对当前页（page）初始化，即对struct page数据成员（page->flags、page->_refcount、page->_mapcount、page->_last_cpupid、page->lru）初始化 */
+  5344  			__init_single_page(page, pfn, zone, nid);
+      			/* 指定pageblock的类型为MIGRATE_MOVABLE */
+  5345  			set_pageblock_migratetype(page, MIGRATE_MOVABLE);
+  5346  			cond_resched();
+  5347  		} else {
+      			/* __init_single_pfn() 函数内部调用了__init_single_page（），同5344行实现功能一致 */
+  5348  			__init_single_pfn(pfn, zone, nid);
+  5349  		}
+  5350  	}
+  5351  }
+  ```
+
+  下面着重解析 第5345行 set_pageblock_migratetype() 函数，该函数用于设定 pageblock 的MIGRATE_TYPES 类型，该函数最后调用 set_pfnblock_flags_mask() 来设置 pageblock 的迁移类型，相关函数定义、调用关系及解析如下：
+
+  ```c
+  [linux-4.14/include/linux/pageblock-flags.h]
+  84  #define set_pageblock_flags_group(page, flags, start_bitidx, end_bitidx) \
+  85  	set_pfnblock_flags_mask(page, flags, page_to_pfn(page),		\
+  86  			end_bitidx,					\
+  87  			(1 << (end_bitidx - start_bitidx + 1)) - 1)
+  
+  [linux-4.14/mm/page_alloc.c]
+  437  /**
+  438   * set_pfnblock_flags_mask - Set the requested group of flags for a pageblock_nr_pages block of pages
+  439   * @page: The page within the block of interest
+  440   * @flags: The flags to set
+  441   * @pfn: The target page frame number
+  442   * @end_bitidx: The last bit of interest
+  443   * @mask: mask of bits that the caller is interested in
+  444   */
+  445  void set_pfnblock_flags_mask(struct page *page, unsigned long flags,
+  446  					unsigned long pfn,
+  447  					unsigned long end_bitidx,
+  448  					unsigned long mask)
+  449  {
+  450  	unsigned long *bitmap;
+  451  	unsigned long bitidx, word_bitidx;
+  452  	unsigned long old_word, word;
+  453  
+  454  	BUILD_BUG_ON(NR_PAGEBLOCK_BITS != 4);
+  455  	/* get_pageblock_bitmap() 函数获取 page 所属内存区域zone的pageblock_flags */
+  456  	bitmap = get_pageblock_bitmap(page, pfn);
+  457  	bitidx = pfn_to_bitidx(page, pfn);
+  458  	word_bitidx = bitidx / BITS_PER_LONG;
+  459  	bitidx &= (BITS_PER_LONG-1);
+  460  
+  461  	VM_BUG_ON_PAGE(!zone_spans_pfn(page_zone(page), pfn), page);
+  462  
+  463  	bitidx += end_bitidx;
+  464  	mask <<= (BITS_PER_LONG - bitidx - 1);
+  465  	flags <<= (BITS_PER_LONG - bitidx - 1);
+  466  
+  467  	word = READ_ONCE(bitmap[word_bitidx]);
+  468  	for (;;) {
+  469  		old_word = cmpxchg(&bitmap[word_bitidx], word, (word & ~mask) | flags);
+  470  		if (word == old_word)
+  471  			break;
+  472  		word = old_word;
+  473  	}
+  474  }
+  
+  476  void set_pageblock_migratetype(struct page *page, int migratetype)
+  477  {
+  478  	if (unlikely(page_group_by_mobility_disabled &&
+  479  		     migratetype < MIGRATE_PCPTYPES))
+  480  		migratetype = MIGRATE_UNMOVABLE;
+  481  	/* 调用宏set_pageblock_flags_group， 该宏定义为函数set_pfnblock_flags_mask */
+  482  	set_pageblock_flags_group(page, (unsigned long)migratetype,
+  483  					PB_migrate, PB_migrate_end);
+  484  }
+  ```
+
+  
