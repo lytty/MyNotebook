@@ -213,4 +213,4 @@
 
    ​		early_init_dt_add_memory_arch(base, size)最终调用memblock_add(base, size)将内存添加到到memblock子系统中进行管理。
 
-   ​		memblock内存管理机制用于在Linux启动后管理内存，一直到free_initmem()为止。之后totalram_pages就稳定在一个数值。至于memblock具体介绍，可百度搜索，此处不再具体叙述。
+   ​		memblock内存管理机制用于在Linux启动后管理内存，一直到free_initmem()为止。之后totalram_pages就稳定在一个数值。至于memblock具体介绍，可参考后续章节《内存分配》。
