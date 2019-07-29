@@ -354,3 +354,4 @@
 - opengrok-indexer -j /usr/lib/jvm/java-1.8.0-openjdk-amd64/bin/java -J=-Djava.util.logging.config.file=/var/opengrok/logging.properties -a /opt/opengrok/lib/opengrok.jar --  -s /index/src -d /opt/opengrok/database/data -H -P -S -G -W /opt/opengrok/etc/configuration.xml -U http://localhost:8080/source
 - ubuntu配置opengrok： https://luomuxiaoxiao.com/?p=56
 
+35. 视频转gif命令：ffmpeg -i vokoscreen-2019-07-29_11-33-40.mkv out.gif
