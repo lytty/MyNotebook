@@ -109,11 +109,15 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
 
 ![img](/home/haibin.xu/haibin/doc/picture/memblock初始化图.png) 
 
-## 3. memblock初始化
+
+
+## 3. memblock主要函数
 
 - 系统初始化阶段，所有的内存资源，都会添加到memory类型内存中。我们在《设备树》章节中有讲到，设备树本身就是描述硬件资源信息的，理所当然，内存资源信息也应该挂在设备树上，即Linux中的内存资源信息，是以设备树的形式来告知内核。对于Linux内核如何从设备树上获取内存资源信息，《内存解析》章节有详细介绍，接下来我们基于《内存解析》章节着重分析一下，内核获取到内存资源信息后，以什么样的形式保存内存资源信息。
 
-> memblock_add() 添加内存区域
+### 3.1 memblock_add
+
+- `memblock_add()`函数用于添加region到memblock.memory中
 
 - 函数调用关系：
   
@@ -185,7 +189,7 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   [linux-4.14/mm/memblock.c]
   /* base: 物理内存的起始地址
    * size: 物理内存的大小
-   * base,size表示出物理内存区间
+   * base,size表示出物理内存区间，第一次调用memblock_add（）函数时，<base, size> = <0x6000 0000, 0x4000 0000>
   */
   596  int __init_memblock memblock_add(phys_addr_t base, phys_addr_t size)
   597  {
@@ -199,6 +203,70 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   603  	return memblock_add_range(&memblock.memory, base, size, MAX_NUMNODES, 0);
   604  }
   
+   
+  428  /**
+  429   * memblock_merge_regions - merge neighboring compatible regions
+  430   * @type: memblock type to scan
+  431   *
+  432   * Scan @type and merge neighboring compatible regions.
+  433   */
+  434  static void __init_memblock memblock_merge_regions(struct memblock_type *type)
+  435  {
+  436  	int i = 0;
+  437  
+  438  	/* cnt never goes below 1 */
+  439  	while (i < type->cnt - 1) {
+  440  		struct memblock_region *this = &type->regions[i];
+  441  		struct memblock_region *next = &type->regions[i + 1];
+  442  
+  443  		if (this->base + this->size != next->base || //前一个内存区域的结尾地址不等于下一个内存区域的起始地址
+  444  		    memblock_get_region_node(this) != 
+  445  		    memblock_get_region_node(next) || //两个内存区域不是同一个node
+  446  		    this->flags != next->flags) { //两个内存区域的标志不一样
+  447  			BUG_ON(this->base + this->size > next->base);
+  448  			i++;
+  449  			continue;
+  450  		}
+  451  
+  452  		this->size += next->size; //如果两个内存区域相连，则进行合并
+  453  		/* move forward from next + 1, index of which is i + 2 */
+  454  		memmove(next, next + 1, (type->cnt - (i + 2)) * sizeof(*next)); //后面部分往前挪一个位置
+  455  		type->cnt--; //内存区域计数减1
+  456  	}
+  457  }
+  
+  459  /**
+  460   * memblock_insert_region - insert new memblock region
+  461   * @type:	memblock type to insert into
+  462   * @idx:	index for the insertion point
+  463   * @base:	base address of the new region
+  464   * @size:	size of the new region
+  465   * @nid:	node id of the new region
+  466   * @flags:	flags of the new region
+  467   *
+  468   * Insert new memblock region [@base,@base+@size) into @type at @idx.
+  469   * @type must already have extra room to accommodate the new region.
+  470   */
+      /**
+       * memblock_insert_region()的实现很简单，就是把idx 位置后面的数据往后挪一个位置，然后把要添加
+       * 的内存区域信息保存在idx对应的数据结构中
+       */
+  471  static void __init_memblock memblock_insert_region(struct memblock_type *type,
+  472  						   int idx, phys_addr_t base,
+  473  						   phys_addr_t size,
+  474  						   int nid, unsigned long flags)
+  475  {
+  476  	struct memblock_region *rgn = &type->regions[idx];
+  477  
+  478  	BUG_ON(type->cnt >= type->max);
+  479  	memmove(rgn + 1, rgn, (type->cnt - idx) * sizeof(*rgn));//把插入位置后的内存区域都往后面挪一个位置，memmove（）函数可自行查看源码，比较简单，功能就是实现逐字节拷贝。
+  480  	rgn->base = base;//上面挪完之后，将加入的内存区域插入当前位置
+  481  	rgn->size = size;
+  482  	rgn->flags = flags;
+  483  	memblock_set_region_node(rgn, nid);
+  484  	type->cnt++;//新加的内存区域个数加1
+  485  	type->total_size += size;//总的内存大小累加
+  486  }
   
   488  /**
   489   * memblock_add_range - add new memblock region
@@ -230,7 +298,7 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   515  		return 0;
   516  
   517  	/* special case for empty array */
-      	/* 刚开始还没有空余的memory加入到 memblock 管理的数组中，所以type->regions[0].size == 0成立，跑完if 里面的代码后就返回了 		  */
+      	/* 刚开始还没有空余的memory加入到 memblock 管理的数组中，所以type->regions[0].size == 0成立，跑完if 里面的代码后就返回了 */
   518  	if (type->regions[0].size == 0) {
   519  		WARN_ON(type->cnt != 1 || type->total_size);
   520  		type->regions[0].base = base;
@@ -240,6 +308,7 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   524  		type->total_size = size;
   525  		return 0;
   526  	}
+       /* 以下代码在第二次调用memblock_add（）函数时才会执行, 因为第二次调用memblock_add（）函数时， type->regions[0].size ！= 0，不再执行上面的if语句 */
   527  repeat:
   528  	/*
   529  	 * The following is executed twice.  Once with %false @insert and
@@ -292,8 +361,8 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   576  	 * insertions; otherwise, merge and return.
   577  	 */
   578  	if (!insert) {
-  579  		while (type->cnt + nr_new > type->max)
-  580  			if (memblock_double_array(type, obase, size) < 0)
+  579  		while (type->cnt + nr_new > type->max)//添加的内存区域超过了最大值128
+  580  			if (memblock_double_array(type, obase, size) < 0)//把数组扩大一倍，这种情况我们先不考虑
   581  				return -ENOMEM;
   582  		insert = true;
   583  		goto repeat;
@@ -303,11 +372,185 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   587  	}
   588  }
   
+  
   ```
   
-  
-  
-   
+  第一次调用`memblock_add()`函数，只执行到 memblock_add_range（）526行，repeat标志位下的代码不再执行，在arm 32位下，没有再去调用`memblock_add()`函数，而在arm 64位下，第一次调用`memblock_add()`函数后，返回到setup_arch() 函数，把dtf 得到的memory base和size信息添加到memblock后，继续执行arm64_memblock_init()，在arm64_memblock_init()函数中，再一次调用了`memblock_add()`函数，此时就会执行repeat标志位下的代码。
   
   
 
+### 3.2 memblock_remove
+
+-  `memblock_remove()`函数用于将一个region从memblock.memory中移除
+
+- 删除内存就是从memory类型的内存中，删除一段内存空间。由于这段内存空间往往是某个或某些region的一部分，所以删除一段内存空间，有可能将一个region拆分成两个region。内存删除规则：
+
+  1. 如果删除的内存位于某个region的中间，则该region会首先被拆分成三个region，最后一个中间的region被删除，如下图：![1564480048132](../picture/memblock删除-1.png)
+
+  2. 如果删除的内存位于某个region的前半部分或者后半部分，则该region首先被拆分成两个region，后面或者前面的region会被删除，如下图：![这里写图片描述](../picture/memblock删除-2.png)
+  3. 如果删除的内存跨越多个region，会按照前两条规则将region拆分，最后删除相应的region，如下图：![这里写图片描述](/home/haibin.xu/haibin/doc/picture/memblock删除-3.png)
+
+- 函数调用关系：memblock_remove() -> memblock_remove_range() -> memblock_isolate_range()
+
+  ​																											|-> memblock_remove_region()
+
+- `memblock_remove()`函数定义如下，其中`memblock_isolate_range()`函数的作用是把要移除的区域标识出来，`start_rgn`标识了移除区域的起始位置，`end_rgn`是结束位置，最用调用`memblock_remove_region()`函数把这些区域移除，部分函数前面已解析过，其他函数也比较简单，暂不做过多解析： 
+
+  ```c
+  [linux-4.14/mm/memblock.c]
+  
+  697  int __init_memblock memblock_remove(phys_addr_t base, phys_addr_t size)
+  698  {
+  699  	return memblock_remove_range(&memblock.memory, base, size);
+  700  }
+  
+  682  static int __init_memblock memblock_remove_range(struct memblock_type *type,
+  683  					  phys_addr_t base, phys_addr_t size)
+  684  {
+  685  	int start_rgn, end_rgn;
+  686  	int i, ret;
+  687  
+  688  	ret = memblock_isolate_range(type, base, size, &start_rgn, &end_rgn);
+  689  	if (ret)
+  690  		return ret;
+  691  
+  692  	for (i = end_rgn - 1; i >= start_rgn; i--)
+  693  		memblock_remove_region(type, i);
+  694  	return 0;
+  695  }
+  696  
+  
+  
+  606  /**
+  607   * memblock_isolate_range - isolate given range into disjoint memblocks
+  608   * @type: memblock type to isolate range for
+  609   * @base: base of range to isolate
+  610   * @size: size of range to isolate
+  611   * @start_rgn: out parameter for the start of isolated region
+  612   * @end_rgn: out parameter for the end of isolated region
+  613   *
+  614   * Walk @type and ensure that regions don't cross the boundaries defined by
+  615   * [@base,@base+@size).  Crossing regions are split at the boundaries,
+  616   * which may create at most two more regions.  The index of the first
+  617   * region inside the range is returned in *@start_rgn and end in *@end_rgn.
+  618   *
+  619   * RETURNS:
+  620   * 0 on success, -errno on failure.
+  621   */
+  622  static int __init_memblock memblock_isolate_range(struct memblock_type *type,
+  623  					phys_addr_t base, phys_addr_t size,
+  624  					int *start_rgn, int *end_rgn)
+  625  {
+  626  	phys_addr_t end = base + memblock_cap_size(base, &size);
+  627  	int idx;
+  628  	struct memblock_region *rgn;
+  629  
+  630  	*start_rgn = *end_rgn = 0;
+  631  
+  632  	if (!size)
+  633  		return 0;
+  634  
+  635  	/* we'll create at most two more regions */
+      	/* 当删除的内存位于某个region的中间，则该region会首先被拆分成三个region，此时，region个数会增加2个，下面while检测当region个数增加2后是否越过max值 */
+  636  	while (type->cnt + 2 > type->max)
+  637  		if (memblock_double_array(type, base, size) < 0)
+  638  			return -ENOMEM;
+  639  
+  640  	for_each_memblock_type(type, rgn) {
+  641  		phys_addr_t rbase = rgn->base;
+  642  		phys_addr_t rend = rbase + rgn->size;
+  643  
+  644  		if (rbase >= end)
+  645  			break;
+  646  		if (rend <= base)
+  647  			continue;
+  648  
+  649  		if (rbase < base) {
+  650  			/*
+  651  			 * @rgn intersects from below.  Split and continue
+  652  			 * to process the next region - the new top half.
+  653  			 */
+  654  			rgn->base = base;
+  655  			rgn->size -= base - rbase;
+  656  			type->total_size -= base - rbase;
+  657  			memblock_insert_region(type, idx, rbase, base - rbase,
+  658  					       memblock_get_region_node(rgn),
+  659  					       rgn->flags);
+  660  		} else if (rend > end) {
+  661  			/*
+  662  			 * @rgn intersects from above.  Split and redo the
+  663  			 * current region - the new bottom half.
+  664  			 */
+  665  			rgn->base = end;
+  666  			rgn->size -= end - rbase;
+  667  			type->total_size -= end - rbase;
+  668  			memblock_insert_region(type, idx--, rbase, end - rbase,
+  669  					       memblock_get_region_node(rgn),
+  670  					       rgn->flags);
+  671  		} else {
+  672  			/* @rgn is fully contained, record it */
+  673  			if (!*end_rgn)
+  674  				*start_rgn = idx;
+  675  			*end_rgn = idx + 1;
+  676  		}
+  677  	}
+  678  
+  679  	return 0;
+  680  } 
+  
+  269  static void __init_memblock memblock_remove_region(struct memblock_type *type, unsigned long r)
+  270  {
+  271  	type->total_size -= type->regions[r].size;
+  272  	memmove(&type->regions[r], &type->regions[r + 1],
+  273  		(type->cnt - (r + 1)) * sizeof(type->regions[r]));
+  274  	type->cnt--;
+  275  
+  276  	/* Special case for empty arrays */
+  277  	if (type->cnt == 0) {
+  278  		WARN_ON(type->total_size != 0);
+  279  		type->cnt = 1;
+  280  		type->regions[0].base = 0;
+  281  		type->regions[0].size = 0;
+  282  		type->regions[0].flags = 0;
+  283  		memblock_set_region_node(&type->regions[0], MAX_NUMNODES);
+  284  	}
+  285  }
+  ```
+
+
+
+### 3.3 memblock_alloc
+
+- `memblock_alloc()`函数用于申请内存
+
+  ```c
+  1207  phys_addr_t __init memblock_alloc(phys_addr_t size, phys_addr_t align)
+  1208  {
+  1209  	return memblock_alloc_base(size, align, MEMBLOCK_ALLOC_ACCESSIBLE);
+  1210  }
+  
+  /* memblock_alloc 最终调用到 memblock_alloc_range_nid */
+  1135  static phys_addr_t __init memblock_alloc_range_nid(phys_addr_t size,
+  1136  					phys_addr_t align, phys_addr_t start,
+  1137  					phys_addr_t end, int nid, ulong flags)
+  1138  {
+  1139  	phys_addr_t found;
+  1140  
+  1141  	if (!align)
+  1142  		align = SMP_CACHE_BYTES;
+  1143  
+  1144  	found = memblock_find_in_range_node(size, align, start, end, nid,
+  1145  					    flags);
+  1146  	if (found && !memblock_reserve(found, size)) {
+  1147  		/*
+  1148  		 * The min_count is set to 0 so that memblock allocations are
+  1149  		 * never reported as leaks.
+  1150  		 */
+  1151  		kmemleak_alloc_phys(found, size, 0, 0);
+  1152  		return found;
+  1153  	}
+  1154  	return 0;
+  1155  }
+  ```
+
+  
