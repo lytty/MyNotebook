@@ -19,7 +19,7 @@
 ```c
 [linux-4.14/include/linux/memblock.h]
 48  struct memblock {
-49  	bool bottom_up;  // 表示分配器分配内存的方式 true:从低地址向高地址分配  false:相反就是从高地址向地址分配内存
+49  	bool bottom_up;  // 表示分配器分配内存的方式 true:从低地址向高地址分配  false:相反就是从高地址向低地址分配内存
 50  	phys_addr_t current_limit; // 可以使用的内存的上限
 51  	struct memblock_type memory; // 可分配内存的集合，申请内存时，会从这些集合中分配内存
 52  	struct memblock_type reserved; // 已分配内存（包括预留内存）的集合，分配出去的内存会放在这个集合里面管理
@@ -521,18 +521,38 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
 
 ### 3.3 memblock_alloc
 
-- `memblock_alloc()`函数用于申请内存
+- `memblock_alloc()`函数用于分配内存，其内部逻辑分两步：
 
+  1. 遍历memory类型内存的region，并从中剔除掉已经分配的内存，已经分配的内存以region的形式存放在rserved类型内存中，从中分配合适的内存。
+  2. 调用memblock_reserve函数将分配的内存以region的形式存放在rserved类型内存中。
+  
   ```c
+  [linux-4.14/include/linux/memblock.h]
+  /* Definition of memblock flags. */
+  24  enum {
+  25  	MEMBLOCK_NONE		= 0x0,	/* No special request */
+  		...
+  29  };
+  300  #define MEMBLOCK_ALLOC_ACCESSIBLE	0
+  [linux-4.14/include/linux/numa.h]
+  14  #define	NUMA_NO_NODE	(-1)
+  
+  
+  [linux-4.14/mm/memblock.c]
   1207  phys_addr_t __init memblock_alloc(phys_addr_t size, phys_addr_t align)
   1208  {
   1209  	return memblock_alloc_base(size, align, MEMBLOCK_ALLOC_ACCESSIBLE);
   1210  }
   
-  /* memblock_alloc 最终调用到 memblock_alloc_range_nid */
+  /* memblock_alloc 最终调用到 memblock_alloc_range_nid, 中间调用了许多函数，这些函数实际上没有做什么，只不过多传了一些参数而已，此处就不列出来了 
+  start: 0
+  end: MEMBLOCK_ALLOC_ACCESSIBLE // MEMBLOCK_ALLOC_ACCESSIBLE也为0
+  nid: NUMA_NO_NODE // NUMA_NO_NODE 为-1
+  flags: MEMBLOCK_NONE // MEMBLOCK_NONE 为0
+  */
   1135  static phys_addr_t __init memblock_alloc_range_nid(phys_addr_t size,
   1136  					phys_addr_t align, phys_addr_t start,
-  1137  					phys_addr_t end, int nid, ulong flags)
+	1137  					phys_addr_t end, int nid, ulong flags)
   1138  {
   1139  	phys_addr_t found;
   1140  
@@ -551,6 +571,272 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   1153  	}
   1154  	return 0;
   1155  }
+  
+  
+  166  /**
+  167   * memblock_find_in_range_node - find free area in given range and node
+  168   * @size: size of free area to find
+  169   * @align: alignment of free area to find
+  170   * @start: start of candidate range
+  171   * @end: end of candidate range, can be %MEMBLOCK_ALLOC_{ANYWHERE|ACCESSIBLE}
+  172   * @nid: nid of the free area to find, %NUMA_NO_NODE for any node
+  173   * @flags: pick from blocks based on memory attributes
+  174   *
+  175   * Find @size free area aligned to @align in the specified range and node.
+  176   *
+  177   * When allocation direction is bottom-up, the @start should be greater
+  178   * than the end of the kernel image. Otherwise, it will be trimmed. The
+  179   * reason is that we want the bottom-up allocation just near the kernel
+  180   * image so it is highly likely that the allocated memory and the kernel
+  181   * will reside in the same node.
+  182   *
+  183   * If bottom-up allocation failed, will try to allocate memory top-down.
+  184   *
+  185   * RETURNS:
+  186   * Found address on success, 0 on failure.
+  187   */
+  188  phys_addr_t __init_memblock memblock_find_in_range_node(phys_addr_t size,
+  189  					phys_addr_t align, phys_addr_t start,
+  190  					phys_addr_t end, int nid, ulong flags)
+  191  {
+  192  	phys_addr_t kernel_end, ret;
+  193  
+  194  	/* pump up @end */
+  195  	if (end == MEMBLOCK_ALLOC_ACCESSIBLE)
+  196  		end = memblock.current_limit;
+  197  
+  198  	/* avoid allocating the first page */
+  199  	start = max_t(phys_addr_t, start, PAGE_SIZE);
+  200  	end = max(start, end);
+  201  	kernel_end = __pa_symbol(_end);
+  202  
+  203  	/*
+  204  	 * try bottom-up allocation only when bottom-up mode
+  205  	 * is set and @end is above the kernel image.
+  206  	 */
+      	/* memblock_bottom_up()函数获取全局变量memblock.bottom_up值，因为memblock.bottom_up为false，即内存分配方式是从高地址向低地址，所以此处不执行if语句内部代码 */
+  207  	if (memblock_bottom_up() && end > kernel_end) {
+  208  		phys_addr_t bottom_up_start;
+  209  
+  210  		/* make sure we will allocate above the kernel */
+  211  		bottom_up_start = max(start, kernel_end);
+  212  
+  213  		/* ok, try bottom-up allocation first */
+  214  		ret = __memblock_find_range_bottom_up(bottom_up_start, end,
+  215  						      size, align, nid, flags);
+  216  		if (ret)
+  217  			return ret;
+  218  
+  219  		/*
+  220  		 * we always limit bottom-up allocation above the kernel,
+  221  		 * but top-down allocation doesn't have the limit, so
+  222  		 * retrying top-down allocation may succeed when bottom-up
+  223  		 * allocation failed.
+  224  		 *
+  225  		 * bottom-up allocation is expected to be fail very rarely,
+  226  		 * so we use WARN_ONCE() here to see the stack trace if
+  227  		 * fail happens.
+  228  		 */
+  229  		WARN_ONCE(1, "memblock: bottom-up allocation failed, memory hotunplug may be affected\n");
+  230  	}
+  231  
+  232  	return __memblock_find_range_top_down(start, end, size, align, nid,
+  233  					      flags);
+  234  }
+  
+  
+  128  /**
+  129   * __memblock_find_range_top_down - find free area utility, in top-down
+  130   * @start: start of candidate range
+  131   * @end: end of candidate range, can be %MEMBLOCK_ALLOC_{ANYWHERE|ACCESSIBLE}
+  132   * @size: size of free area to find
+  133   * @align: alignment of free area to find
+  134   * @nid: nid of the free area to find, %NUMA_NO_NODE for any node
+  135   * @flags: pick from blocks based on memory attributes
+  136   *
+  137   * Utility called from memblock_find_in_range_node(), find free area top-down.
+  138   *
+  139   * RETURNS:
+  140   * Found address on success, 0 on failure.
+  141   */
+  142  static phys_addr_t __init_memblock
+  143  __memblock_find_range_top_down(phys_addr_t start, phys_addr_t end,
+  144  			       phys_addr_t size, phys_addr_t align, int nid,
+  145  			       ulong flags)
+  146  {
+  147  	phys_addr_t this_start, this_end, cand;
+  148  	u64 i;
+  149  
+  150  	for_each_free_mem_range_reverse(i, nid, flags, &this_start, &this_end,
+  151  					NULL) {	//遍历memory.regions 和 reserved.regions
+  152  		this_start = clamp(this_start, start, end); //在允许申请的地址范围 取值 , 可以认为就返回了this_start
+  153  		this_end = clamp(this_end, start, end); //在允许申请的地址范围 取值 。 可以认为就返回了this_end
+  154  
+  155  		if (this_end < size) //可分配内存区域小于要申请的内存大小，继续查找下一个可分配内存区域
+  156  			continue;
+  157  
+  158  		cand = round_down(this_end - size, align); //这里可以直接看作是 cand = this -end  ，因为内存分配方式是从高到低
+  159  		if (cand >= this_start) // cand 肯定要在this_start 到this_end 之前才行呀    cand |<--size -->|
+  160  			return cand;  //                                    this_start|------- ... ------| this_end
+  161  	}
+  162  
+  163  	return 0;
+  164  }
   ```
-
+  
+  上面150行`for_each_free_mem_range_reverse`为一个for循环的宏， 内部调用了`__next_mem_range_rev()`函数，如下：
+  
+  ```c
+  [linux-4.14/include/linux/memblock.h]
+  222  /**
+  223   * for_each_free_mem_range_reverse - rev-iterate through free memblock areas
+  224   * @i: u64 used as loop variable
+  225   * @nid: node selector, %NUMA_NO_NODE for all nodes
+  226   * @flags: pick from blocks based on memory attributes
+  227   * @p_start: ptr to phys_addr_t for start address of the range, can be %NULL
+  228   * @p_end: ptr to phys_addr_t for end address of the range, can be %NULL
+  229   * @p_nid: ptr to int for nid of the range, can be %NULL
+  230   *
+  231   * Walks over free (memory && !reserved) areas of memblock in reverse
+  232   * order.  Available as soon as memblock is initialized.
+  233   */
+  234  #define for_each_free_mem_range_reverse(i, nid, flags, p_start, p_end,	\
+  235  					p_nid)				\
+  236  	for_each_mem_range_rev(i, &memblock.memory, &memblock.reserved,	\
+  237  			       nid, flags, p_start, p_end, p_nid)
+      
+  135  /**
+  136   * for_each_mem_range_rev - reverse iterate through memblock areas from
+  137   * type_a and not included in type_b. Or just type_a if type_b is NULL.
+  138   * @i: u64 used as loop variable
+  139   * @type_a: ptr to memblock_type to iterate
+  140   * @type_b: ptr to memblock_type which excludes from the iteration
+  141   * @nid: node selector, %NUMA_NO_NODE for all nodes
+  142   * @flags: pick from blocks based on memory attributes
+  143   * @p_start: ptr to phys_addr_t for start address of the range, can be %NULL
+  144   * @p_end: ptr to phys_addr_t for end address of the range, can be %NULL
+  145   * @p_nid: ptr to int for nid of the range, can be %NULL
+  146   */
+  147  #define for_each_mem_range_rev(i, type_a, type_b, nid, flags,		\
+  148  			       p_start, p_end, p_nid)			\
+  149  	for (i = (u64)ULLONG_MAX,					\
+  150  		     __next_mem_range_rev(&i, nid, flags, type_a, type_b,\
+  151  					  p_start, p_end, p_nid);	\
+  152  	     i != (u64)ULLONG_MAX;					\
+  153  	     __next_mem_range_rev(&i, nid, flags, type_a, type_b,	\
+  154  				  p_start, p_end, p_nid))
+  
+  [linux-4.14/mm/memblock.c]
+  
+  962  /**
+  963   * __next_mem_range_rev - generic next function for for_each_*_range_rev()
+  964   *
+  965   * Finds the next range from type_a which is not marked as unsuitable
+  966   * in type_b.
+  967   *
+  968   * @idx: pointer to u64 loop variable
+  969   * @nid: node selector, %NUMA_NO_NODE for all nodes
+  970   * @flags: pick from blocks based on memory attributes
+  971   * @type_a: pointer to memblock_type from where the range is taken
+  972   * @type_b: pointer to memblock_type which excludes memory from being taken
+  973   * @out_start: ptr to phys_addr_t for start address of the range, can be %NULL
+  974   * @out_end: ptr to phys_addr_t for end address of the range, can be %NULL
+  975   * @out_nid: ptr to int for nid of the range, can be %NULL
+  976   *
+  977   * Reverse of __next_mem_range().
+  978   */
+  979  void __init_memblock __next_mem_range_rev(u64 *idx, int nid, ulong flags,
+  980  					  struct memblock_type *type_a,
+  981  					  struct memblock_type *type_b,
+  982  					  phys_addr_t *out_start,
+  983  					  phys_addr_t *out_end, int *out_nid)
+  984  {
+  985  	int idx_a = *idx & 0xffffffff;
+  986  	int idx_b = *idx >> 32;
+  987  
+  988  	if (WARN_ONCE(nid == MAX_NUMNODES, "Usage of MAX_NUMNODES is deprecated. Use NUMA_NO_NODE instead\n"))
+  989  		nid = NUMA_NO_NODE;
+  990  
+  991  	if (*idx == (u64)ULLONG_MAX) {
+  992  		idx_a = type_a->cnt - 1;
+  993  		if (type_b != NULL)
+  994  			idx_b = type_b->cnt;
+  995  		else
+  996  			idx_b = 0;
+  997  	}
+  998  
+  999  	for (; idx_a >= 0; idx_a--) {
+  1000  		struct memblock_region *m = &type_a->regions[idx_a];
+  1001  
+  1002  		phys_addr_t m_start = m->base;
+  1003  		phys_addr_t m_end = m->base + m->size;
+  1004  		int m_nid = memblock_get_region_node(m);
+  1005  
+  1006  		/* only memory regions are associated with nodes, check it */
+  1007  		if (nid != NUMA_NO_NODE && nid != m_nid)
+  1008  			continue;
+  1009  
+  1010  		/* skip hotpluggable memory regions if needed */
+  1011  		if (movable_node_is_enabled() && memblock_is_hotpluggable(m))
+  1012  			continue;
+  1013  
+  1014  		/* if we want mirror memory skip non-mirror memory regions */
+  1015  		if ((flags & MEMBLOCK_MIRROR) && !memblock_is_mirror(m))
+  1016  			continue;
+  1017  
+  1018  		/* skip nomap memory unless we were asked for it explicitly */
+  1019  		if (!(flags & MEMBLOCK_NOMAP) && memblock_is_nomap(m))
+  1020  			continue;
+  1021  
+  1022  		if (!type_b) {
+  1023  			if (out_start)
+  1024  				*out_start = m_start;
+  1025  			if (out_end)
+  1026  				*out_end = m_end;
+  1027  			if (out_nid)
+  1028  				*out_nid = m_nid;
+  1029  			idx_a--;
+  1030  			*idx = (u32)idx_a | (u64)idx_b << 32;
+  1031  			return;
+  1032  		}
+  1033  
+  1034  		/* scan areas before each reservation */
+  1035  		for (; idx_b >= 0; idx_b--) {
+  1036  			struct memblock_region *r;
+  1037  			phys_addr_t r_start;
+  1038  			phys_addr_t r_end;
+  1039  
+  1040  			r = &type_b->regions[idx_b];
+  1041  			r_start = idx_b ? r[-1].base + r[-1].size : 0;
+  1042  			r_end = idx_b < type_b->cnt ?
+  1043  				r->base : ULLONG_MAX;
+  1044  			/*
+  1045  			 * if idx_b advanced past idx_a,
+  1046  			 * break out to advance idx_a
+  1047  			 */
+  1048  
+  1049  			if (r_end <= m_start)
+  1050  				break;
+  1051  			/* if the two regions intersect, we're done */
+  1052  			if (m_end > r_start) {
+  1053  				if (out_start)
+  1054  					*out_start = max(m_start, r_start);
+  1055  				if (out_end)
+  1056  					*out_end = min(m_end, r_end);
+  1057  				if (out_nid)
+  1058  					*out_nid = m_nid;
+  1059  				if (m_start >= r_start)
+  1060  					idx_a--;
+  1061  				else
+  1062  					idx_b--;
+  1063  				*idx = (u32)idx_a | (u64)idx_b << 32;
+  1064  				return;
+  1065  			}
+  1066  		}
+  1067  	}
+  1068  	/* signal end of iteration */
+  1069  	*idx = ULLONG_MAX;
+  1070  }
+  ```
+  
   
