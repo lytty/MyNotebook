@@ -829,6 +829,7 @@
     51  						 * it points to anon_vma object:
     52  						 * see PAGE_MAPPING_ANON below.
     53  						 */
+    
     ```
     
     - struct page 数据结构中的mapping成员表示页面所指向的地址空间（address_space）。内核中的地址空间通常有两个不同的地址空间，一个用于文件映射页面，例如在读取文件时，地址空间用于将文件的内容数据与装载数据的存储介质区关联起来；另一个用于匿名映射。内核使用了一个简单直接的方式实现了“一个指针，两种用途”，mapping指针地址的最低位用于判断是否指向匿名映射或KSM页面的地址空间，如果是匿名映射，那么mapping指向匿名页面的地址空间数据结构struct anon_vma。
