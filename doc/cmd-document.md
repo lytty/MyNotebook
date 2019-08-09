@@ -72,7 +72,7 @@
 
 13. Android 代码下载
     ```shell
-    repo init -u ssh://gitadmin@gitmirror.unisoc.com/platform/manifest -b <<branch>> -c --no-tags 
+    repo init -u ssh://gitadmin@gitmirror.unisoc.com/platform/manifest -b <branch> -c --no-tags 
     repo sync -c --no-tags 参数会让下载加快
     repo init 也可以使用 -c --no-tags 啦，init过程飞快
     ```
@@ -155,7 +155,7 @@
 ---
 
 21. 串口log抓取命令：
-    `sudo minicom -D /dev/ttyUSB2 -C minicom.log`
+    `sudo minicom -D /dev/ttyUSB0 -C minicom.log`
     `sudo gcom /dev/ttyUSB2`
 ---
 
@@ -355,3 +355,7 @@
 - ubuntu配置opengrok： https://luomuxiaoxiao.com/?p=56
 
 35. 视频转gif命令：ffmpeg -i vokoscreen-2019-07-29_11-33-40.mkv out.gif
+
+36. mboot打开adbd：
+    - 在5s的阶段：
+    adbd-setup.sh; sleep 1; rm /system/bin/sh; ln -s /msystem/bin/sh /system/bin/sh
