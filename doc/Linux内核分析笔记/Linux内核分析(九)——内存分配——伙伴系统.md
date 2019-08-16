@@ -56,7 +56,7 @@
   
   96  struct free_area {
   97  	struct list_head	free_list[MIGRATE_TYPES];
-98  	unsigned long		nr_free;
+	98  	unsigned long		nr_free;
   99  };
   
   ```
@@ -224,4 +224,143 @@
   
   ```
 
+
+
+## 3. 备用区域列表
+
+- 如果首选的内存节点和区域（zone）不能满足页分配请求，可以从备用的内存区域借用物理页，借用必须遵守以下原则。
+
+  > 1. 一个内存节点的某个区域类型可以从另一个内存节点的相同区域类型借用物理页，例如节点0的普通区域可以从节点1的普通区域借用物理页。
+  > 2. 高区域类型可以从低区域类型借用物理页，例如普通区域类型可以从DMA区域借用物理页。
+  > 3. 低区域类型不能从高区域类型借用物理页，例如DMA区域不能从普通区域借用物理页。
+
+- 内存节点的`pg_data_t`实例定义了备用区域列表，其代码如下：
+
+  ```c
+  // linux-4.14/include/linux/mmzone.h 
   
+  624  typedef struct pglist_data {
+		...
+  626  	struct zonelist node_zonelists[MAX_ZONELISTS]; /*备用区域（zone）列表*/
+  		...
+  730  } pg_data_t;
+  
+  568  /* Maximum number of zones on a zonelist */
+  569  #define MAX_ZONES_PER_ZONELIST (MAX_NUMNODES * MAX_NR_ZONES)
+  570  
+  571  enum {
+  572  	ZONELIST_FALLBACK,	/* zonelist with fallback 包含所有内存节点的备用区域列表*/
+  573  #ifdef CONFIG_NUMA
+  574  	/*
+  575  	 * The NUMA zonelists are doubled because we need zonelists that
+  576  	 * restrict the allocations to a single node for __GFP_THISNODE.
+  577  	 */
+  578  	ZONELIST_NOFALLBACK,	/* zonelist without fallback (__GFP_THISNODE) 只包含当前内存节点的备用区域列表*/
+  579  #endif
+  580  	MAX_ZONELISTS
+  581  };
+  
+  606  struct zonelist {
+  607  	struct zoneref _zonerefs[MAX_ZONES_PER_ZONELIST + 1];
+  608  };
+  
+  583  /*
+  584   * This struct contains information about a zone in a zonelist. It is stored
+  585   * here to avoid dereferences into large structures and lookups of tables
+  586   */
+  587  struct zoneref {
+  588  	struct zone *zone;	/* Pointer to actual zone 指向内存区域的数据结构*/
+  589  	int zone_idx;		/* zone_idx(zoneref->zone) 内存区域zone的类型*/
+  590  };
+  
+  ```
+  
+     UMA系统只有一个备用区域列表，按区域类型从高到底排序。假设UMA系统包含普通区域类型和DMA区域类型，那么备用区域列表是：{普通区域，DMA区域}。
+  
+     NUMA系统的每个内存节点有两个备用区域列表：一个包含所有内存节点的备用区域列表，另一个只包含当前内存节点的备用区域列表。如果申请页时指定标志`__GFP_THISNODE`，要求只能从指定内存节点分配物理页，就需要使用指定内存节点的第二个备用区域列表。
+
+- 包含所有内存节点的备用区域列表有两种排序方法：
+
+  > 节点优先排序：先根据节点距离从小到大排序，然后在每个节点里面根据区域类型从高到底排序。
+  >
+  > 区域优先排序：先根据区域类型从高到底排序，然后在每个区域类型里面根据节点距离从小到大排序。
+
+     节点优先排序的优点是优先选择距离近的内存，缺点是在高区域耗尽以前就使用低区域，例如DMA区域一般比较小，节点优选顺序会增大DMA区域耗尽的概率。
+  
+     区域优选排序的优点是减小低区域耗尽的概率，缺点是不能保证优先选择距离近的内存。
+
+- 默认的排序方法是自动选择最优的排序方法：如果是64位系统，因为需要DMA和DMA32区域的设备相对少，所以选择节点优先顺序；如果是32位系统，选择区域优选顺序。
+
+     可以使用内核参数`numa_zonelist_order`指定排序方法：`d`表示默认排序方法，`n`表示节点优选顺序，`z`表示区域优先顺序，大小写字母都可以。在运行中可以使用文件`/proc/sys/numa_zonelist_order`修改排序方法。
+
+  
+
+## 4. 区域水线
+
+- 首先的内存区域在什么情况下从备用区域借用物理页？这个问题要从区域水线开始说起。每个内存区域有3个水线。
+
+  > 高水线（high）：如果内存区域的空闲页数大于高水线，说明该内存区域的内存充足。
+  >
+  > 低水线（low）：如果内存区域的空闲页数小于低水线，说明该内存区域的内存轻微不足。
+  >
+  > 最低水线（min）：如果内存区域的空闲页数小于最低水线，说明该内存区域的内存严重不足。
+
+  ```c
+  [linux-4.14/include/linux/mmzone.h]
+  
+  263  enum zone_watermarks {
+  264  	WMARK_MIN,
+  265  	WMARK_LOW,
+  266  	WMARK_HIGH,
+  267  	NR_WMARK
+  268  };
+  
+  359  struct zone {
+  		...
+  362  	/* zone watermarks, access with *_wmark_pages(zone) macros 区域水线，使用*_wmark_pages(zone) 宏访问 */
+  363  	unsigned long watermark[NR_WMARK];
+  		...
+  509  } ____cacheline_internodealigned_in_smp;
+  
+  ```
+
+- 最低水线以下的内存称为紧急保留内存，在内存严重不足的紧急情况下，给承诺“给我少量紧急保留内存使用，我可以释放更多的内存”的进程使用。
+
+  设置了进程标志位`PF_MEMALLOC`的进程可以使用紧急保留内存，标志位`PF_MEMALLOC`表示承诺“给我少量紧急保留内存使用，我可以释放更多的内存”。内存管理子系统以外的子系统不应该使用这个标志位，典型的例子是页回收内核线程`kswapd`，在回收页的过程中可能需要申请内存。
+
+  如果申请页时设置了标志位`__GFP_MEMALLOC`，即调用者承诺“给我少量紧急保留内存使用，我可以释放更多的内存”，那么可以使用紧急保留内存。
+
+  申请页时，第一次尝试使用低水线，如果首选的内存区域的空闲页数小于低水线，就从备用的内存区域借用物理页。如果第一次分配失败，那么唤醒所有目标内存节点的页回收内核线程`kswapd`以异步回收页，然后尝试使用最低水线。如果首选的内存区域的空闲页数小于最低水线，就从备用的内存区域借用物理页。
+
+- 计算水线时，有两个重要的参数：
+
+  > 1. `min_free_kbytes`是最小空闲字节数。默认值 = 4*sqrt{lowmem_kbytes}, 并且限制在范围[128,65536]以内。其中`lowmem_kbytes`是低端内存大小，单位是KB。参考文件`mm/page_alloc.c`中的函数`init_per_zone_wmark_min`。可以通过文件`/proc/sys/vm/min_free_kbytes`设置最小空闲字节数。
+  > 2. `watermark_scale_factor`是水线缩放因子。默认值是10，可以通过文件`/proc/sys/vm/watermark_scale_factor`修改水线缩放因子，取值范围[1, 1000]。
+
+- 文件`mm/page_alloc.c`中的函数`__setup_per_zone_wmarks()`负责计算每个内存区域的最低水线、低水线、高水线。计算最低水线的方法如下：
+
+  1.  `min_free_pages` = `min_free_kbytes`对应的页数。
+  2.  `lowmem_pages` = 所有低端内存区域中伙伴系统分配器管理的页数总和。
+  3.  高端内存区域的最低水线 = `zone->managed_pages/1024`，并且限制在范围[32, 128]以内（`zone->managed_pages`是该内存区域中伙伴分配器管理的页数，在内核初始化的过程中引导内存分配器分配出去的物理页，不收伙伴分配器管理）。
+  4.  低端内存区域的最低水线 = `min_free_pages * zone->managed_pages/lowmem_pages`,即把`min_free_pages`按比例分配到每个低端内存区域。
+
+  计算低水线和高水线的方法如下：
+
+  1.  增量 = （最低水线/4, `zone->managed_pages * watermark_scale_factor/10000`）取最大值。
+  2.  低水线 = 最低水线 + 增量。
+  3.  高水线 = 最低水线 + 增量 * 2。
+
+  如果（最低水线/4）比较大，那么计算公式简化如下：
+
+  1.  低水线 = 最低水线 * 5/4。
+  2.  高水线 = 最低水线 * 3/2。
+
+
+
+## 5. 防止过度借用
+
+- 和高区域类型相比，低区域类型的内存相对少，是稀缺资源，而且有特殊用途，例如DMA区域用于外围设备和内存之间的数据传输。为了防止高区域类型过度借用低区域类型的物理页，低区域类型需要采取防卫措施，保留一定数量的物理页。
+- 一个内存节点的某个区域类型从另一个内存节点的相同区域类型借用物理页，后者应该毫无保留地借用。
+
+
+
