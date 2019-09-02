@@ -436,7 +436,6 @@
     25.  MakeConnectivityServiceReady
     26.  StartNetworkStack
     27.  MakeNetworkTimeUpdateReady
-    28.  
 
 ## 模块修正
 
