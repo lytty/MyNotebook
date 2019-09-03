@@ -359,3 +359,10 @@
 36. mboot打开adbd：
     - 在5s的阶段：
     adbd-setup.sh; sleep 1; rm /system/bin/sh; ln -s /msystem/bin/sh /system/bin/sh
+
+37. git push出现“Read from socket failed: Connection reset by peer”问题：
+    - cd /etc/ssh;
+    - sudo chmod 0644 *;
+    - sudo chmod 0600 ssh_host_dsa_key ssh_host_rsa_key;
+    - cd;sudo /etc/init.d/ssh restart;
+    回到原目录，重新push即可。
