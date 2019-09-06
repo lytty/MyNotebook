@@ -613,72 +613,161 @@
 3. 每个`slab`由一个或多个连续的物理页组成，页的阶数是最优`slab`或最小`slab`的阶数，如果阶数大于0，组成一个复合页。
 
    - `slab`被划分为多个对象，如果`slab`长度不是对象长度的整数倍，尾部有剩余部分，尾部也可能有保留部分，`kmem_cache`实例的成员`reserved`存放保留长度。
-   
+
    - 在创建内存缓存的时候，如果指定了标志位`SLAB_TYPESAFE_BY_RCU`，要求使用`RCU`延迟释放`slab`，在调用函数`call_rcu`把释放`slab`的函数加入`RCU`回调函数队列的时候，需要提供一个`rcu_head`实例，`slab`提供的`rcu_head`实例的位置分为两种情况：
      1. 如果`page`结构体的成员`lru`的长度大于或等于`rcu_head`结构体的长度，那么重用成员`lru`；
-  2. 如果`page`结构体的成员`lru`的长度小于`rcu_head`结构体的长度，那么必须在`slab`尾部为`rcu_head`结构体保留空间，保留长度是`rcu_head`结构体的长度。
-   
-- `page`结构体相关成员如下(无关成员已省略)：
-	
-     ```c
-  /* linux-4.14/include/linux/mm_types.h */
-     
-      42  struct page {
-      43  	/* First double word block */
-      44  	unsigned long flags;		/* `flags`设置标志位`PG_slab`，表示页属于`slub`分配器 */
-      45  					 
-      46  	union {
-                  ...
-      54  		void *s_mem;			/* `s_mem`存放`slab`第一个对象的地址 */
-                  ...
-      57  	};
-      58
-      59  	/* Second double word */
-      60  	union {
-                  ...
-      62  		void *freelist;		/* `freelist`指向第一个空闲对象 */
-                  ...
-      64  	};
-      65
-      66  	union {
-                  ...
-      79  		struct {
-      80  
-      81  			union {
-                      ...
-      94  				struct {			/* SLUB */
-      95  					unsigned inuse:16; /* 表示已分配对象的数量 */
-      96  					unsigned objects:15; /* 对象数量 */
-      97  					unsigned frozen:1; /* 表示slab释放被冻结在每处理器slab缓存中。如果slab在每处理器slab缓存中，它处于冻结状态；如果slab在内存节点的部分空闲slab链表中，它处于解冻状态。*/
-      98  				};
-                      ...
-      100  			};
-                  ...
-      106  		};
-      107  	};
-      108  
-              ...
-      116  	union {
-      117  		struct list_head lru;	/* `lru`作为链表节点加入部分空闲`slab`链表 */
-                  ...
-      136  		};
-                  ...
-      170  	};
-      171
-      172  	/* Remainder is not double word aligned */
-      173  	union {
-                  ...
-      188  		struct kmem_cache *slab_cache;	/* `slab_cache`指向`kmem_cache`实例 */
-      189  	};
-              ...
-   213  }
-	  
-	  ```
-	
-4. `kmem_cache`实例的成员`cpu_slab`指向kmem_cache_cpu实例，每个处理器对应一个kmem_cache_cpu实例，称为每处理器slab缓存。
+     2. 如果`page`结构体的成员`lru`的长度小于`rcu_head`结构体的长度，那么必须在`slab`尾部为`rcu_head`结构体保留空间，保留长度是`rcu_head`结构体的长度。
 
-   - slab分配器的每处理器数组缓存以对象为单位，而slub分配器的每处理器slab缓存以slab为单位。
-   - 成员freelist指向当前使用的slab的空闲对象链表，成员page指向当前使用的slab对应的page实例。成员partial指向每处理器部分空闲slab链表
+   
+
+   - `page`结构体相关成员如下(无关成员已省略)：
+
+     ```c
+     /* linux-4.14/include/linux/mm_types.h */
+     
+     42  struct page {
+     43  	/* First double word block */
+     44  	unsigned long flags;		/* `flags`设置标志位`PG_slab`，表示页属于`slub`分配器 */
+     45  					 
+     46  	union {
+                 ...
+     54  		void *s_mem;			/* `s_mem`存放`slab`第一个对象的地址 */
+                      ...
+     57  	};
+     58
+     59  	/* Second double word */
+     60  	union {
+                 ...
+     62  		void *freelist;		/* `freelist`指向第一个空闲对象 */
+                 ...
+     64  	};
+     65
+     66  	union {
+                 ...
+     79  		struct {
+     80  
+     81  			union {
+                         ...
+     94  				struct {			/* SLUB */
+     95  					unsigned inuse:16; /* 表示已分配对象的数量 */
+     96  					unsigned objects:15; /* 对象数量 */
+     97  					unsigned frozen:1; /* 表示slab释放被冻结在每处理器slab缓存中。如果slab在每处理器slab缓存中，它处于冻结状态；如果slab在内存节点的部分空闲slab链表中，它处于解冻状态。*/
+     98  				};
+                          ...
+     100  			};
+                      ...
+     106  		};
+     107  	};
+     108  
+                  ...
+     116  	union {
+     117  		struct list_head lru;	/* `lru`作为链表节点加入部分空闲`slab`链表 */
+                      ...
+     136  		};
+                      ...
+     170  	};
+     171
+     172  	/* Remainder is not double word aligned */
+     173  	union {
+                      ...
+     188  		struct kmem_cache *slab_cache;	/* `slab_cache`指向`kmem_cache`实例 */
+     189  	};
+                  ...
+     213  }
+     
+     ```
+
+4. `kmem_cache`实例的成员`cpu_slab`指向`kmem_cache_cpu`实例，每个处理器对应一个`kmem_cache_cpu`实例，称为每处理器`slab`缓存。
+
+   - `slab`分配器的每处理器数组缓存以对象为单位，而`slub`分配器的每处理器`slab`缓存以`slab`为单位。
+
+   - 成员`freelist`指向当前使用的`slab`的空闲对象链表，成员`page`指向当前使用的`slab`对应的`page`实例。成员`partial`指向每处理器部分空闲`slab`链表
+
+   - 对象有两种内存布局，区别是空闲指针的位置不同：第一种内存布局如下图，空闲指针在红色区域2的后面。![1567742491029](../picture/图11.9-空闲指针在红色区域2的后面.png)
+
+     第二种内存布局如下图，空闲指针重用真实对象的第一个字。![1567746724478](../picture/图11.10-空闲指针重用真实对象的第一个字.png)
+
+     `kmem_cache.offset`是空闲指针的偏移，空闲指针的地址等于（真实对象的地址 + 空闲指针偏移）。
+
+     红色区域1的长度 = `kmem_cache.red_left_pad` = 字长对齐到指定的对齐值
+
+     红色区域2的长度 = 字长 - （对象长度 % 字长）
+
+   - 当开启`SLUB`分配器的调试配置宏`CONFIG_SLUB_DEBUG`的时候，对象才包含红色区域1、2、分配用户跟踪和释放用户跟踪这4个成员。
+
+   - 以下3中情况下选择第一种内存布局：
+
+     > 指定构造函数；
+     >
+     > 指定标志位`SLAB_TYPESAFE_BY_RCU`，要求使用`RCU`延迟释放slab；
+     >
+     > 指定标志位`SLAB_POISON`，要求毒化对象。
+
+     其他情况下使用第二种内存布局。
+
+### 11.4.2 空闲对象链表
+
+- 以对象使用第一种内存布局为例说明，一个`slab`的空闲对象链表的初始状态如下图所示：![1567769243773](/home/haibin.xu/haibin/doc/picture/图11.11-空闲对象链表的初始状态.png)
+
+- `page->freelist`指向第一个空闲对象中的真实对象，前一个空闲对象中的空闲指针指向后一个空闲对象中的真实对象，最后一个空闲对象中的空闲指针是空指针。如果打开了`slab`空闲链表随机化的配置宏`CONFIG_SLAB_FREELIST_TANDOM`，每个对象在空闲对象链表中的位置是随机的。
+- 分配一个对象以后，`page->freelist`指向下一个空闲对象中的真实对象，空闲对象链表如下图所示：![1567769560738](../picture/图11.12-分配一个对象以后的空闲对象链表.png)
+
+
+
+### 11.4.3 计算slab长度
+
+- `slub`分配器在创建内存缓存的时候计算了两种`slab`长度：最优`slab`和最小`slab`。最优`slab`是剩余部分比例最小的`slab`，最小`slab`只需要足够存放一个对象。当设备长时间运行以后，内存碎片化，分配连续物理页很难成功，如果分配最优`slab`失败，就分配最小`slab`。
+- 计算最优`slab`的长度时，有3个重要的控制参数：
+  1. `slub_min_objects`:`slab`的最小对象数量，默认值是0，可以在引导内核时使用内核参数`slub_min_objects`设置；
+  2. `slub_min_order`: `slab`的最小阶数，默认值是0，可以在引导内核时使用内核参数`slub_min_order`设置；
+  3. `slub_max_order`: `slab`的最大阶数，默认值是页分配器认为昂贵的阶数3，可以在引导内核时使用内核参数`slub_max_order`设置。
+
+- 函数`calculate_order`负责计算最优`slab`的长度，其计算步骤如下：
+
+  1. 计算最小对象数量`min_objects`
+
+     取控制参数`slub_min_objects`。如果控制参数`slub_min_objects`是0，那么根据处理器数量估算一个值，`min_objects = 4 × (fls(nr_cpu_ids) + 1)`，`nr_cpu_ids`是处理器数量，函数`fls`用来获取被设置的最高位，假设有16个处理器，`fls（16）`的结果是5。最小对象数量不能超过最大阶数`slub_max_order`计算出来的最大对象数量。
+
+  2. 尝试把多个对象放在一个slab中
+
+     ```
+     while (最小对象数量min_objects大于1) {
+     	slab剩余部分比例fraction取16，是倒数值。
+     	while (剩余部分比例fraction 大于或等于4) {
+     		调用函数 slab_order(对象长度size，最小对象数量 min_objects，最大阶数slub_max_order，剩余部分比例fraction， 保留长							 度reserved)计算阶数。
+     		如果算出的阶数不超过最大阶数slub_max_order，那么返回这个阶数。
+     		把剩余部分比例fraction除以2，然后重试
+     	}
+     	把最小对象数量min_objects减1，然后重试。
+     }
+     
+     ```
+
+  3. 如果不能把多个对象放在一个`slab`中，那么尝试把一个对象放在一个`slab`中。先尝试最大阶数取控制参数`slub_max_order`：最小对象数量取1，剩余部分比例取1，调用函数`slab_order`计算阶数，如果阶数不超过`slub_max_order`，那么返回这个阶数。
+
+     然后尝试最大阶数取`MAX_ORDER`（页分配器支持的最大阶数是`MAX_ORDER`-1）：最小对象数量取1，剩余部分比例取1，调用函数`slab_order`计算阶数，如果阶数小于`MAX_ORDER`，那么返回这个阶数。
+
+- 函数`slab_order`负责计算阶数，输入参数是（对象长度size，最小对象数量 min_objects，最大阶数slub_max_order，剩余部分比例fraction， 保留长度reserved），其算法如下：
+
+  ```
+  如果最小slab的对象数量已经超过每页最大对象数量（宏MAX_OBJS_PER_PAGE，值是32767），那么slab长度取（对象长度 × 每页最大对象数）向上对齐到2^n页的长度，然后取一半，slab阶数是（get_order(对象长度 × 每页最大对象数) - 1），函数get_order用来得到内存长度的分配阶。
+  
+  最小阶数min_order从slab最小阶数slub_min_order和根据最小对象数量min_objects算出的slab阶数中取最大值。
+  
+  从最小阶数min_order到最大阶数max_order尝试 {
+  	slab长度 = 页长度左移阶数位
+  	剩余长度 = （slab长度 - 保留长度）除以对象长度取余数
+  	剩余部分比例 = 剩余长度 / slab长度
+  	如果剩余部分比例不超过上限（1/fraction），那么取这个阶数。
+  }
+  
+  ```
+
+
+
+### 11.4.4 每处理器`slab`缓存
+
+
 
 ## 11.5 `slob`分配器
 
@@ -686,3 +775,7 @@
 
 ## 11.6 相关函数解析
 
+
+```
+
+```
