@@ -1,12 +1,14 @@
 # AndroidQ裁剪
 
-## 开机启动优化
+- 我们这里说的Android启动，主要说的是从Kernel启动完成到开机动画完成这一阶段，至于Kernel启动的优化，暂不做分析。Android启动优化的目的就是尽可能缩短系统的开机时间，以便后期zenbu平台上，系统能够快速启动到桌面。
 
-- 查看系统启动时间的命令
+## 1. Android启动事件节点
+
+- 获取系统启动事件的命令
 
   `sudo adb logcat -b events | grep boot`
 
-- 启动阶段主要事件
+- 启动阶段主要事件如下表，我们对Android系统启动的优化便是尽量缩短这各个事件的启动时间或者完成时间
 
   |                                name | description                                                  |
   | ----------------------------------: | ------------------------------------------------------------ |
@@ -30,7 +32,47 @@
   > 4. /data Scan time : boot_progress_pms_scan_end- boot_progress_pms_data_scan_start
   > 5. Home activity start time : boot_progress_enable_screen- boot_progress_ams_ready
 
+- AndroidQ启动时间
 
+  - Android正常版本各事件启动的时间节点（ms）如下，可以看到，如果不进行启动优化，正常Android版本情况下，第一次启动时间已在46s，这要在zebu上启动，估计得在24h以上了。
+
+    ```
+    boot_progress_start 10998
+    boot_progress_preload_start 13734
+    boot_progress_preload_end 16951
+    boot_progress_system_run 17459
+    boot_progress_pms_start 18526
+    boot_progress_pms_system_scan_start 18586
+    boot_progress_pms_data_scan_start 22770
+    boot_progress_pms_scan_end 24132
+    boot_progress_pms_ready 24755
+    boot_progress_ams_ready 40386
+    boot_progress_enable_screen 45663
+    sf_stop_bootanim 46417
+    wm_boot_animation_done 46419
+    
+    ```
+
+  - Android优化版本各事件启动事件节点（ms）如下，可以看到，启动时间缩短了20s。
+
+    ```
+    boot_progress_start 9185
+    boot_progress_preload_start 11344
+    boot_progress_preload_end 14350
+    boot_progress_system_run 14847
+    boot_progress_pms_start 15804
+    boot_progress_pms_system_scan_start 15909
+    boot_progress_pms_data_scan_start 18870
+    boot_progress_pms_scan_end 18889
+    boot_progress_pms_ready 19283
+    boot_progress_ams_ready 23368
+    boot_progress_enable_screen 23698
+    sf_stop_bootanim 26607
+    wm_boot_animation_done 26609
+    
+    ```
+
+    
 
 - 各阶段分析
 
