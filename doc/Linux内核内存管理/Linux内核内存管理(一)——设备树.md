@@ -1,4 +1,4 @@
-# Linux内核分析（一）——设备树
+# Linux内核内存管理（一）——设备树
 
 ## 概述
 
@@ -22,7 +22,7 @@
 
 - 注：要使得3.x之后的内核支持使用设备树，除了内核编译时需要打开相对应的选项外，bootloader也需要支持将设备树的数据结构传给内核。
 
-  
+
 
 
 ## 2. 设备树基本知识
@@ -36,19 +36,21 @@
 
   3. uboot和linux不能识别dts文件，只能识别二进制文件，所以需要将.dts文件编译成.dtb文件。dtb文件是一种可以被kernel和uboot识别的二进制文件。
 
-     ​		把.dts文件编译成.dtb文件的工具就是DTC。DTC的源码位于内核的scripts/dtc目录，内核选中CONFIG_OF，编译内核的时候，主机可执行程序DTC就会被编译出来。即scripts/dtc/Makefile中
-  
+     把.dts文件编译成.dtb文件的工具就是DTC。DTC的源码位于内核的scripts/dtc目录，内核选中CONFIG_OF，编译内核的时候，主机可执行程序DTC就会被编译出来。即scripts/dtc/Makefile中
+
      ``````makefile
      hostprogs-y := dtc
       always := $(hostprogs-y)
+
      ``````
+``````
 
-     ​		在内核的arch/arm/boot/dts/Makefile中，若选中某种SOC，则与其对应相关的所有dtb文件都将编译出来。在linux下，make dtbs可单独编译dtb。
+在内核的arch/arm/boot/dts/Makefile中，若选中某种SOC，则与其对应相关的所有dtb文件都将编译出来。在linux下，make dtbs可单独编译dtb。
 
-     ​		在Linux的scripts/dtc目录下除了提供dtc工具外，也可以自己安装dtc工具，linux下执行：sudo apt-get install device-tree-compiler安装dtc工具。dtc工具的使用方法是：dtc -I dts -O dtb -o xxx.dtb xxx.dts，即可生成dts文件对应的dtb文件了。 当然了，dtc -I dtb -O dts -o xxx.dts xxx.dtb反过来即可生成dts文件。其中还提供了一个fdtdump的工具，可以dump dtb文件，方便查看信息。
-  
-     
-  
+  在Linux的scripts/dtc目录下除了提供dtc工具外，也可以自己安装dtc工具，linux下执行：sudo apt-get install device-tree-compiler安装dtc工具。dtc工具的使用方法是：dtc -I dts -O dtb -o xxx.dtb xxx.dts，即可生成dts文件对应的dtb文件了。 当然了，dtc -I dtb -O dts -o xxx.dts xxx.dtb反过来即可生成dts文件。其中还提供了一个fdtdump的工具，可以dump dtb文件，方便查看信息。
+
+
+
 
 ### 2.2 设备树中DTS（DTSI）文件的基本语法
 
@@ -80,13 +82,13 @@
   	aliases { };
   	memory { device_type = "memory"; reg = <0 0>; };
   };
-  ```
-  
+```
+
   如上，属性# address-cells的值为1，它代表以“/”根节点为parent的子节点中，reg属性中存在一个address值；#size-cells的值为1，它代表以“/” 根节点为parent的子节点中，reg属性中存在一个size值。即父节点的#address-cells和#size-cells的含义如下：
-  
+
   1. #address-cells，用来描述子节点“reg”属性的地址表中用来描述首地址的cell数量；
-  
-   	2.  #size-cells，用来描述子节点“reg”属性的地址表中用来描述地址长度的cell数量；
+
+      	2.  #size-cells，用来描述子节点“reg”属性的地址表中用来描述地址长度的cell数量；
 
 ### 2.3 典型节点描述
 
@@ -138,9 +140,9 @@
 
   1. Reg属性
 
-     在device node 中，reg是描述memory-mapped IO register的offset和length。子节点的reg属性address和length长度取决于父节点对应的#address-cells和#size-cells的值。例：![1560743310223](../picture/dts-reg属性范例.png)
+     在device node 中，reg是描述memory-mapped IO register的offset和length。子节点的reg属性address和length长度取决于父节点对应的#address-cells和#size-cells的值。例：                                        ![1560743310223](../picture/dts-reg属性范例.png)
 
-     在上述的aips节点中，存在子节点spda。spda中的中reg为<0x70000000 0x40000 >，其0x700000000为address，0x40000为size。这一点在图(../picture/dts基本语法范例.png)有作介绍。
+     在上述的aips节点中，存在子节点spba。spba中的中reg为<0x70000000 0x40000 >，其0x700000000为address，0x40000为size。这一点在图(../picture/dts基本语法范例.png)有作介绍。
 
      这里补充的一点是：设备节点的名称格式[node-name@unit-address](mailto:node-name@unit-address)，节点名称用node-name唯一标识，为一个ASCII字符串。其中@unit-address为可选项，可以不作描述。unit-address的具体格式和设备挂载在哪个bus上相关。如：cpu的unit-address从0开始编址，以此加1；本例中，aips为0x70000000。
 
@@ -150,7 +152,7 @@
 
      注：对于“/”root节点，它也存在compatible属性，用来匹配machine type。具体说明将在后面给出。
 
-  3. interrupts属性![1560743906756](../picture/dts-interrupts属性范例.png)
+  3. interrupts属性                                                     ![1560743906756](../picture/dts-interrupts属性范例.png)
 
      设备节点通过interrupt-parent来指定它所依附的中断控制器，当节点没有指定interrupt-parent时，则从parent节点中继承。上面例子中，root节点的interrupt-parent = <&mic>。这里使用了引用，即mic引用了②中的inrerrupt-controller @40008000；root节点的子节点并没有指定interrupt-controller，如ahb、fab，它们均使用从根节点继承过来的mic，即位于0x40008000的中断控制器。
 
@@ -162,9 +164,9 @@
 
      注：对于相同名称的节点，dtc会根据定义的先后顺序进行合并，其相同属性，取后定义的那个。
 
-## 3. Device Tree文件结构 
+## 3. Device Tree文件结构
 
-- DTB由三部分组成：头（Header）、结构块（device-tree structure）、字符串块（string block），其布局结构如下：![560927134575](../picture/dtb文件结构.png)
+- DTB由三部分组成：头（Header）、结构块（device-tree structure）、字符串块（string block），其布局结构如下：            ![560927134575](../picture/dtb文件结构.png)
 - 通过以上分析，可以得到Device Tree文件结构如下图所示。dtb文件的头部首先存放的是fdt_header的结构体信息，接着是填充区域，填充大小为off_dt_struct – sizeof(struct fdt_header)，填充的值为0。接着就是struct fdt_property结构体的相关信息。最后是dt_string部分。![1560931064859](../picture/dtb文件结构-2.png)
 
 ### 3.1 Device Tree文件头信息
@@ -220,7 +222,7 @@
     9 0000080: 00 00 00 20 61 72 6d 2c 76 65 78 70 72 65 73 73  ... arm,vexpress
   ```
 
-  
+
 
 ### 3.2 device-tree structure——节点
 
@@ -268,9 +270,9 @@
   3. nameoff为属性名称存储位置相对于off_dt_strings的偏移地址。
 
 - 设备树节点的结构如下：![1560933536225](../picture/dt_struct结构图.png)
-  
+
   一个节点的结构如下：
-  
+
   1. 节点开始标志：一般为FDT_BEGIN_NODE（0x00000001）。
   2. 节点路径或者节点的单元名(version<3以节点路径表示，version>=0x10以节点单元名表示)。
   3. 填充字段（对齐到四字节）。
@@ -302,7 +304,7 @@
   1. kernel的C语言阶段的入口函数是init/main.c/start_kernel()函数，在early_init_dt_scan_nodes()中会做以下三件事：
      - 扫描/chosen或者/chose@0节点下面的bootargs属性值到boot_command_line，此外，还处理initrd相关的property，并保存在initrd_start和initrd_end这两个全局变量中；
      - 扫描根节点下面，获取{size,address}-cells信息，并保存在dt_root_size_cells和dt_root_addr_cells全局变量中；   
-     - 扫描具有device_type = “memory”属性的/memory或者/memory@0节点下面的reg属性值，并把相关信息保存在meminfo中，全局变量meminfo保存了系统内存相关的信息。 
+     - 扫描具有device_type = “memory”属性的/memory或者/memory@0节点下面的reg属性值，并把相关信息保存在meminfo中，全局变量meminfo保存了系统内存相关的信息。
 
   2. Device Tree中的每一个node节点经过kernel处理都会生成一个struct device_node的结构体，struct device_node最终一般会被挂接到具体的struct device结构体。struct device_node结构体描述如下：kernel4.14/include/linux/of.h     
       ```c
@@ -334,7 +336,7 @@
           144#define OF_POPULATED	3 /* device already created for the node */
           145#define OF_POPULATED_BUS	4 /* of_platform_populate recursed to children of this node */
       ```
-      
+
       - 下面分析以上信息是如何得来的。Device Tree的解析首先从unflatten_device_tree()开始，实现代码如下：     
 
       ```c
@@ -357,9 +359,9 @@
       1253  
       1254  	unittest_unflatten_overlay_base();
       1255  }
-              
+
       ```
-      
+
       - 分析以上代码，在`unflatten_device_tree()`中，调用函数`__unflatten_device_tree()`，参数`initial_boot_params`指向Device Tree在内存中的首地址，`of_root`在经过该函数处理之后，会指向根节点，`early_init_dt_alloc_memory_arch`是一个函数指针，为`struct device_node`和`struct property`结构体分配内存的回调函数（callback）。
       - `__unflatten_device_tree`  函数与`unflatten_device_tree`在同一文件中，定义如下：
       ```c
@@ -439,11 +441,11 @@
       493  
       494  	pr_debug(" <- unflatten_device_tree()\n");
       495  	return mem;
-      496  } 
+      496  }
       ```
       - 在`__unflatten_device_tree()`函数中，两次调用`unflatten_dt_nodes()`函数，第一次是为了得到Device Tree转换成`struct device_node`和`struct property`结构体需要分配的内存大小，第二次调用才是具体填充每一个`struct device_node`和`struct property`结构体。
       - `unflatten_dt_nodes()`代码列出如下，需要注意的是，较早版本（Linux4.0）中，该幻数原型为`unflatten_dt_node()`，两个函数实现的功能是一样的，只是在`unflatten_dt_nodes()`函数中多包了一层`populate_node()`，而在`unflatten_dt_node()`函数中，`populate_node()`相关实现代码是展开着的。
-      
+
       ```c
       // linux-5.1/drivers/of/fdt.c
       349  /**
@@ -518,12 +520,12 @@
       418  	return mem - base;
       419  }
       ```
-      
+
       - 由`unflatten_dt_nodes()`函数可知，在`__unflatten_device_tree()`函数中，两次调用`unflatten_dt_nodes()`函数，第一次调用`unflatten_dt_nodes()`函数，mem为NULL，根据367、368两行可知，此时dryrun为true，此时就不再执行`if(!dryrun)`相关代码（这部分代码主要实现每一个struct device_node和struct property结构体的具体填充），所以第一次，我们只计算Device Tree转换成struct device_node和struct property结构体需要分配的内存大小（赋值给size），而第二次调用`unflatten_dt_nodes()`函数时，mem参数已经通过`__unflatten_device_tree()`函数中`dt_alloc()`获取相应的值，故在第二次调用`unflatten_dt_nodes()`函数时，此时dryrun为false，通过执行`if(!dryrun)`相关代码填充每一个struct device_node和struct property结构体。
       - `populate_node()`是计算节点所需内存大小的核心函数，其实现代码如下：
-      
+
       ```c
-      // linux-5.1/drivers/of/fdt.c 
+      // linux-5.1/drivers/of/fdt.c
       279  static bool populate_node(const void *blob,
       280  			  int offset,
       281  			  void **mem,
@@ -570,11 +572,11 @@
       322  	return true;
       323  }
       ```
-      
+
       - `populate_properties()`函数计算节点内部所有的property所需内存，实现代码如下：
-      
+
       ```c
-      // linux-5.1/drivers/of/fdt.c 
+      // linux-5.1/drivers/of/fdt.c
       178  static void populate_properties(const void *blob,
       179  				int offset,
       180  				void **mem,
@@ -677,8 +679,8 @@
       276  		*pprev = NULL;
       277  }
       ```
-      
-      
+
+
 
 ## 5. OF的API接口
 
@@ -708,13 +710,13 @@
    ```c
    struct device_node *cpus;
    cpus=of_find_node_by_path("/cpus");
-   
+
    // linux-5.1/include/linux/of.h
    280  static inline struct device_node *of_find_node_by_path(const char *path)
    281  {
    282  	return of_find_node_opts_by_path(path, NULL);
    283  }
-   
+
    // linux-5.1/drivers/of/base.c
    921  /**
    922   *	of_find_node_opts_by_path - Find a node matching a full OF path
@@ -791,7 +793,7 @@
    ```c
    struct device_node *np;
    np = of_find_node_by_name(NULL,"firewire");
-   
+
    // linux-5.1/drivers/of/base.c
    986  /**
    987   *	of_find_node_by_name - Find a node by its "name" property
@@ -830,7 +832,7 @@
    ```c
    struct device_node *tsi_pci;
    tsi_pci= of_find_node_by_type(NULL,"pci");
-   
+
    // linux-5.1/drivers/of/base.c
    1013  /**
    1014   *	of_find_node_by_type - Find a node by its "device_type" property
@@ -867,7 +869,7 @@
 
    ```c
    // linux-5.1/drivers/of/base.c
-   
+
    1041  /**
    1042   *	of_find_compatible_node - Find a node based on type and one of the
    1043   *                                tokens in its "compatible" property
@@ -900,7 +902,7 @@
    1070  EXPORT_SYMBOL(of_find_compatible_node);
    ```
 
-   
+
 
 6. 根据节点属性的name查找device_node
 
@@ -908,7 +910,7 @@
 
    ```c
    // linux-5.1/drivers/of/base.c
-   
+
    1072  /**
    1073   *	of_find_node_with_property - Find a node which has a property with
    1074   *                                   the given name.
@@ -945,7 +947,7 @@
    1105  EXPORT_SYMBOL(of_find_node_with_property);
    ```
 
-   
+
 
 7. 根据phandle查找device_node
 
@@ -953,7 +955,7 @@
 
    ```c
    // linux-5.1/drivers/of/base.c
-   
+
    1215  /**
    1216   * of_find_node_by_phandle - Find a node given a phandle
    1217   * @handle:	phandle of the node to find
@@ -1006,7 +1008,7 @@
    1264  EXPORT_SYMBOL(of_find_node_by_phandle);
    ```
 
-   
+
 
 8. 根据alias的name获得设备id号
 
@@ -1014,7 +1016,7 @@
 
    ```c
    // linux-5.1/drivers/of/base.c
-   
+
    2014  /**
    2015   * of_alias_get_id - Get alias id for the given device_node
    2016   * @np:		Pointer to the given device_node
@@ -1045,7 +1047,7 @@
    2041  EXPORT_SYMBOL_GPL(of_alias_get_id);
    ```
 
-   
+
 
 9. device node计数增加/减少
 
@@ -1055,7 +1057,7 @@
 
    ```c
    // linux-5.1/drivers/of/dynamic.c
-   
+
    25  /**
    26   * of_node_get() - Increment refcount of a node
    27   * @node:	Node to inc refcount, NULL is supported to simplify writing of
@@ -1084,7 +1086,7 @@
    50  EXPORT_SYMBOL(of_node_put);
    ```
 
-   
+
 
 10. 根据property结构的name参数，在指定的device node中查找合适的property
 
@@ -1092,7 +1094,7 @@
 
     ```c
     // linux-5.1/drivers/of/base.c
-    
+
     272  struct property *of_find_property(const struct device_node *np,
     273  				  const char *name,
     274  				  int *lenp)
@@ -1109,7 +1111,7 @@
     285  EXPORT_SYMBOL(of_find_property);
     ```
 
-    
+
 
 11. 根据property结构的name参数，返回该属性的属性值
 
@@ -1117,7 +1119,7 @@
 
     ```c
     // linux-5.1/drivers/of/base.c
-    
+
     338  /*
     339   * Find a property with a given name for a given node
     340   * and return the value.
@@ -1132,7 +1134,7 @@
     349  EXPORT_SYMBOL(of_get_property);
     ```
 
-    
+
 
 12. 根据compat参数与device node的compatible匹配，返回匹配度
 
@@ -1157,7 +1159,7 @@
     562  EXPORT_SYMBOL(of_device_is_compatible);
     ```
 
-    
+
 
 13. 获得父节点的device node
 
@@ -1165,7 +1167,7 @@
 
     ```c
     // linux-5.1/drivers/of/base.c
-    
+
     679  /**
     680   *	of_get_parent - Get a node's parent if any
     681   *	@node:	Node to get parent
@@ -1189,7 +1191,7 @@
     699  EXPORT_SYMBOL(of_get_parent);
     ```
 
-    
+
 
 14. 将matches数组中of_device_id结构的name和type与device node的compatible和type匹配，返回匹配度最高的of_device_id结构
 
@@ -1197,7 +1199,7 @@
 
     ```c
     // linux-5.1/drivers/of/base.c
-    
+
     1129  /**
     1130   * of_match_node - Tell if a device_node has a matching of_match structure
     1131   *	@matches:	array of of device match structures to search in
@@ -1219,7 +1221,7 @@
     1147  EXPORT_SYMBOL(of_match_node);
     ```
 
-    
+
 
 15. 根据属性名propname，读出属性值中的第index个u32数值给out_value
 
@@ -1227,7 +1229,7 @@
 
     ```c
     // linux-5.1/drivers/of/property.c
-    
+
     98  /**
     99   * of_property_read_u32_index - Find and read a u32 from a multi-value property.
     100   *
@@ -1262,7 +1264,7 @@
     129  
     ```
 
-    
+
 
 16. 根据属性名propname，读出该属性的数组中sz个属性值给out_values
 
@@ -1276,7 +1278,7 @@
 
     ```c
     // linux-5.1/include/linux/of.h
-    
+
     416  /**
     417   * of_property_read_u8_array - Find and read an array of u8 from a property.
     418   *
@@ -1394,7 +1396,7 @@
     530  }
     ```
 
-    
+
 
 17. 根据属性名propname，读出该属性的u64属性值
 
@@ -1433,7 +1435,7 @@
     329  EXPORT_SYMBOL_GPL(of_property_read_u64);
     ```
 
-    
+
 
 18. 根据属性名propname，读出该属性的字符串属性值
 
@@ -1441,7 +1443,7 @@
 
     ```c
     // linux-5.1/drivers/of/property.c
-    
+
     378  /**
     379   * of_property_read_string - Find and read a string from a property
     380   * @np:		device node from which the property value is to be read.
@@ -1473,7 +1475,7 @@
     406  EXPORT_SYMBOL_GPL(of_property_read_string);
     ```
 
-    
+
 
 19. 根据属性名propname，读出该字符串属性值数组中的第index个字符串
 
@@ -1481,7 +1483,7 @@
 
     ```c
     // linux-5.1/include/linux/of.h
-    
+
     1140  /**
     1141   * of_property_read_string_index() - Find and read a string from a multiple
     1142   * strings property.
@@ -1509,7 +1511,7 @@
     1164  }
     ```
 
-    
+
 
 20. 读取属性名propname中，字符串属性值的个数
 
@@ -1517,7 +1519,7 @@
 
     ```c
     // linux-5.1/include/linux/of.h
-     
+
     1122  /**
     1123   * of_property_count_strings() - Find and return the number of strings from a
     1124   * multiple strings property.
@@ -1537,7 +1539,7 @@
     1138  }
     ```
 
-    
+
 
 21. 读取该设备的第index个irq号
 
@@ -1545,7 +1547,7 @@
 
     ```c
     // linux-5.1/drivers/of/irq.c
-    
+
     28  /**
     29   * irq_of_parse_and_map - Parse and map an interrupt into linux virq space
     30   * @dev: Device node of the device whose interrupt is to be mapped
@@ -1566,7 +1568,7 @@
     45  EXPORT_SYMBOL_GPL(irq_of_parse_and_map);
     ```
 
-    
+
 
 22. 读取该设备的第index个irq号，并填充一个irq资源结构体
 
@@ -1574,7 +1576,7 @@
 
     ```c
     // linux-5.1/drivers/of/irq.c
-    
+
     343  /**
     344   * of_irq_to_resource - Decode a node's IRQ and return it as a resource
     345   * @dev: pointer to device tree node
@@ -1611,7 +1613,7 @@
     376  EXPORT_SYMBOL_GPL(of_irq_to_resource);
     ```
 
-    
+
 
 23. 获取该设备的irq个数
 
@@ -1619,7 +1621,7 @@
 
     ```c
     // linux-5.1/drivers/of/irq.c
-     
+
     429  /**
     430   * of_irq_count - Count the number of IRQs a node uses
     431   * @dev: pointer to device tree node
@@ -1636,7 +1638,7 @@
     442  }
     ```
 
-    
+
 
 24. 获取设备寄存器地址，并填充寄存器资源结构体
 
@@ -1646,7 +1648,7 @@
 
     ```c
     // linux-5.1/drivers/of/address.c
-    
+
     780  /**
     781   * of_address_to_resource - Translate device tree address and return as resource
     782   *
@@ -1673,8 +1675,8 @@
     803  	return __of_address_to_resource(dev, addrp, size, flags, name, r);
     804  }
     805  EXPORT_SYMBOL_GPL(of_address_to_resource);
-    
-    
+
+
     694  const __be32 *of_get_address(struct device_node *dev, int index, u64 *size,
     695  		    unsigned int *flags)
     696  {
@@ -1714,7 +1716,7 @@
     730  EXPORT_SYMBOL(of_get_address);
     ```
 
-    
+
 
 25. 获取经过映射的寄存器虚拟地址
 
@@ -1722,7 +1724,7 @@
 
     ```c
     // linux-5.1/drivers/of/address.c
-    
+
     826  /**
     827   * of_iomap - Maps the memory mapped IO for a given device_node
     828   * @device:	the device whose io range will be mapped
@@ -1742,7 +1744,7 @@
     842  EXPORT_SYMBOL(of_iomap);
     ```
 
-    
+
 
 26. 根据device_node查找返回该设备对应的platform_device结构
 
@@ -1750,7 +1752,7 @@
 
     ```c
     // linux-5.1/drivers/of/platform.c
-    
+
     /**
     46   * of_find_device_by_node - Find the platform_device associated with a node
     47   * @np: Pointer to device tree node
@@ -1770,7 +1772,7 @@
     61  EXPORT_SYMBOL(of_find_device_by_node);
     ```
 
-    
+
 
 27. 根据device node，bus id以及父节点创建该设备的platform_device结构
 
@@ -1780,7 +1782,7 @@
 
     ```c
     // linux-5.1/drivers/of/platform.c
-    
+
     107  /**
     108   * of_device_alloc - Allocate and initialize an of_device
     109   * @np: device node to assign to device
@@ -1837,15 +1839,15 @@
     160  EXPORT_SYMBOL(of_device_alloc);
     ```
 
-    
+
 
 28. 遍历of_allnodes中的节点挂接到of_platform_bus_type总线上,由于此时of_platform_bus_type总线上还没有驱动,所以此时不进行匹配
 
     `int of_platform_bus_probe(struct device_node *root,const struct of_device_id *matches,struct device *parent)`
-    
+
     ```c
     // linux-5.1/drivers/of/platform.c
-    
+
     414  /**
     415   * of_platform_bus_probe() - Probe the device-tree for platform buses
     416   * @root: parent of the first level to probe or NULL for the root of the tree
@@ -1887,5 +1889,3 @@
     452  }
     453  EXPORT_SYMBOL(of_platform_bus_probe);
     ```
-    
-    

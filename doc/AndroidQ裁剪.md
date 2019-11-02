@@ -2633,3 +2633,54 @@
 ## 模块修正
 
 - `com.android.media.swcodec`模块不可移除，否则，antutu3D无法运行
+
+
+
+
+
+
+
+
+
+# Android 启动优化
+- 我们这里说的Android启动，主要说的是从Kernel启动完成到开机动画完成这一阶段，至于Kernel启动的优化，暂不做分析。Android启动优化的目的就是尽可能缩短系统的开机时间，以便后期zenbu平台上，系统能够快速启动到桌面。
+<br />
+<br />
+
+## 1. Android启动事件节点
+- 获取启动事件节点命令：`sudo adb logcat -b events | grep boot`
+- 共有如下几个事件节点，我们对Android系统启动的优化便是尽量缩短这各个事件的启动事件或者完成事件：
+  |                                name | description                                                  |
+  | ----------------------------------: | ------------------------------------------------------------ |
+  |                 boot_progress_start | 代表着Android屏幕点亮，开始显示启动动画. 系统进入用户空间，标志着kernel启动完成 |
+  |         boot_progress_preload_start | Zygote启动                                                   |
+  |           boot_progress_preload_end | Zygote结束                                                   |
+  |            boot_progress_system_run | SystemServer ready,开始启动Android系统服务，如PMS，APMS等    |
+  |             boot_progress_pms_start | PMS开始扫描安装的应用                                        |
+  | boot_progress_pms_system_scan_start | PMS先行扫描/system目录下的安装包                             |
+  |   boot_progress_pms_data_scan_start | PMS扫描/data目录下的安装包                                   |
+  |          boot_progress_pms_scan_end | PMS扫描结束                                                  |
+  |             boot_progress_pms_ready | PMS就绪                                                      |
+  |             boot_progress_ams_ready | AMS就绪                                                      |
+  |         boot_progress_enable_screen | AMS启动完成后开始激活屏幕，从此以后屏幕才能响应用户的触摸，它在WindowManagerService发出退出开机动画的时间节点之前，而真正退出开机动画还会花费少许时间，具体依赖animation zip 包中的desc.txt。wm_boot_animation_done才是用户感知到的动画结束时间节点 |
+  |                    sf_stop_bootanim | SF设置service.bootanim.exit属性值为1，标志系统要结束开机动画了，可以用来跟踪开机动画结尾部分消耗的时间 |
+  |              wm_boot_animation_done | 开机动画结束，这一步用户能直观感受到开机结束                 |
+  
+- 下面我们看一下在正常Android版本各事件启动的时间节点（ms），可以看到，如果不进行启动优化，正常Android版本情况下，第一次启动时间已在46s，这要在zebu上启动，估计得在24h以上了。
+```
+boot_progress_start 10998
+boot_progress_preload_start 13734
+boot_progress_preload_end 16951
+boot_progress_system_run 17459
+boot_progress_pms_start 18526
+boot_progress_pms_system_scan_start 18586
+boot_progress_pms_data_scan_start 22770
+boot_progress_pms_scan_end 24132
+boot_progress_pms_ready 24755
+boot_progress_ams_ready 40386
+boot_progress_enable_screen 45663
+sf_stop_bootanim 46417
+wm_boot_animation_done 46419
+
+```
+- 

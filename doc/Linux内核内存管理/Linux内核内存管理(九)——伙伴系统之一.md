@@ -1,4 +1,4 @@
-# Linux内核分析(九)——伙伴系统之一
+# Linux内核内存管理(九)——伙伴系统之一
 
 - 内核初始化完毕后，使用页分配器管理物理页，当前使用页分配器是伙伴分配器，伙伴分配器的特点是算法简单且效率高。
 
@@ -42,7 +42,7 @@
 
   ```c
   /* linux-4.14/include/linux/mmzone.h */
-  
+
   359  struct zone {
   		...
   436  	unsigned long		managed_pages; /* 伙伴分配器管理的物理页的数量 */
@@ -52,20 +52,20 @@
   462  	struct free_area	free_area[MAX_ORDER]; /* 不同长度的空闲区域 */
   		...
   509  } ____cacheline_internodealigned_in_smp;
-  
-  
+
+
   96  struct free_area {
   97  	struct list_head	free_list[MIGRATE_TYPES];
 	98  	unsigned long		nr_free;
   99  };
-  
+
   ```
-  
+
   `MAX_ORDER`是最大阶数，实际上是可分配的最大阶数加1，默认值是11，意味着伙伴分配器一次最多可以分配 2^10 页。可以使用配置宏 `CONFIG_FORCE_MAX_ZONEORDER` 指定最大阶数。
-  
+
   ```c
   /* linux-4.14/include/linux/mmzone.h */
-  
+
   23  /* Free memory management - zoned buddy allocator. 空闲内存管理-分区的伙伴分配器 */
   24  #ifndef CONFIG_FORCE_MAX_ZONEORDER
   25  #define MAX_ORDER 11
@@ -73,7 +73,7 @@
   27  #define MAX_ORDER CONFIG_FORCE_MAX_ZONEORDER
   28  #endif
   29  #define MAX_ORDER_NR_PAGES (1 << (MAX_ORDER - 1))
-  
+
   ```
 
 ### 9.2.2 根据分配标志得到首选区域类型
@@ -82,12 +82,12 @@
 
   ```c
   [linux-4.14/include/linux/gfp.h]
-  
+
   19  #define ___GFP_DMA			0x01u
   20  #define ___GFP_HIGHMEM		0x02u
   21  #define ___GFP_DMA32		0x04u
   22  #define ___GFP_MOVABLE		0x08u
-  
+
   ```
 
 - 分配掩码的不同组合对应不同的内存区域类型，其对应关系如下：
@@ -126,7 +126,7 @@
   330  #else
   331  #define OPT_ZONE_DMA32 ZONE_NORMAL
   332  #endif
-  
+
   ```
 
 - 内核使用宏`GFP_ZONE_TABLE`定义了分配标志（分配掩码）组合到区域类型的映射表，其中`GFP_ZONES_SHIFT`是区域类型占用的位数，`GFP_ZONE_TABLE`把每种标志组合映射到32位整数的某个位置，偏移是（标志组合 * 区域类型位数），从这个偏移开始的`GFP_ZONES_SHIFT`个二进制位存放区域类型。宏`GFP_ZONE_TABLE`是一个常量，编译器在编译时会进行优化，直接计算出结果，不会等到运行程序的时候才计算数值。
@@ -143,17 +143,17 @@
   385  	| (ZONE_MOVABLE << (___GFP_MOVABLE | ___GFP_HIGHMEM) * GFP_ZONES_SHIFT)  \
   386  	| (OPT_ZONE_DMA32 << (___GFP_MOVABLE | ___GFP_DMA32) * GFP_ZONES_SHIFT)  \
   387  )
-  
+
   ```
 
 - 内核使用函数`gfp_zone()`根据分配标志得到首选的区域类型：先分离出区域标志位，然后算出在映射表（`GFP_ZONE_TABLE`）中的偏移（标志组合 * 区域类型位数），接着把映射表右移偏移值，最后取出最低的区域类型位数。
 
   ```c
   [linux-4.14/include/linux/gfp.h]
-  
+
   61  #define GFP_ZONEMASK	(__GFP_DMA|__GFP_HIGHMEM|__GFP_DMA32|__GFP_MOVABLE)
-  
-  
+
+
   334  /*
   335   * GFP_ZONE_TABLE is a word size bitstring that is used for looking up the
   336   * zone to use given the lowest 4 bits of gfp_t. Entries are GFP_ZONES_SHIFT
@@ -193,7 +193,7 @@
   370  #else
   371  #define GFP_ZONES_SHIFT ZONES_SHIFT
   372  #endif    
-      
+
   389  /*
   390   * GFP_ZONE_BAD is a bitmap for all combinations of __GFP_DMA, __GFP_DMA32
   391   * __GFP_HIGHMEM and __GFP_MOVABLE that are not permitted. One flag per
@@ -210,7 +210,7 @@
   402  	| 1 << (___GFP_MOVABLE | ___GFP_DMA32 | ___GFP_HIGHMEM)		      \
   403  	| 1 << (___GFP_MOVABLE | ___GFP_DMA32 | ___GFP_DMA | ___GFP_HIGHMEM)  \
   404  )
-      
+
   406  static inline enum zone_type gfp_zone(gfp_t flags)
   407  {
   408  	enum zone_type z;
@@ -221,7 +221,7 @@
   413  	VM_BUG_ON((GFP_ZONE_BAD >> bit) & 1);
   414  	return z;
   415  }
-  
+
   ```
 
 
@@ -237,14 +237,14 @@
 - 内存节点的`pg_data_t`实例定义了备用区域列表，其代码如下：
 
   ```c
-  // linux-4.14/include/linux/mmzone.h 
-  
+  // linux-4.14/include/linux/mmzone.h
+
   624  typedef struct pglist_data {
 		...
   626  	struct zonelist node_zonelists[MAX_ZONELISTS]; /*备用区域（zone）列表*/
   		...
   730  } pg_data_t;
-  
+
   568  /* Maximum number of zones on a zonelist */
   569  #define MAX_ZONES_PER_ZONELIST (MAX_NUMNODES * MAX_NR_ZONES)
   570  
@@ -259,11 +259,11 @@
   579  #endif
   580  	MAX_ZONELISTS
   581  };
-  
+
   606  struct zonelist {
   607  	struct zoneref _zonerefs[MAX_ZONES_PER_ZONELIST + 1];
   608  };
-  
+
   583  /*
   584   * This struct contains information about a zone in a zonelist. It is stored
   585   * here to avoid dereferences into large structures and lookups of tables
@@ -272,11 +272,11 @@
   588  	struct zone *zone;	/* Pointer to actual zone 指向内存区域的数据结构*/
   589  	int zone_idx;		/* zone_idx(zoneref->zone) 内存区域zone的类型*/
   590  };
-  
+
   ```
-  
+
      UMA系统只有一个备用区域列表，按区域类型从高到底排序。假设UMA系统包含普通区域类型和DMA区域类型，那么备用区域列表是：{普通区域，DMA区域}。
-  
+
      NUMA系统的每个内存节点有两个备用区域列表：一个包含所有内存节点的备用区域列表，另一个只包含当前内存节点的备用区域列表。如果申请页时指定标志`__GFP_THISNODE`，要求只能从指定内存节点分配物理页，就需要使用指定内存节点的第二个备用区域列表。
 
 - 包含所有内存节点的备用区域列表有两种排序方法：
@@ -286,14 +286,14 @@
   > 区域优先排序：先根据区域类型从高到底排序，然后在每个区域类型里面根据节点距离从小到大排序。
 
      节点优先排序的优点是优先选择距离近的内存，缺点是在高区域耗尽以前就使用低区域，例如DMA区域一般比较小，节点优选顺序会增大DMA区域耗尽的概率。
-  
+
      区域优选排序的优点是减小低区域耗尽的概率，缺点是不能保证优先选择距离近的内存。
 
 - 默认的排序方法是自动选择最优的排序方法：如果是64位系统，因为需要DMA和DMA32区域的设备相对少，所以选择节点优先顺序；如果是32位系统，选择区域优选顺序。
 
      可以使用内核参数`numa_zonelist_order`指定排序方法：`d`表示默认排序方法，`n`表示节点优选顺序，`z`表示区域优先顺序，大小写字母都可以。在运行中可以使用文件`/proc/sys/numa_zonelist_order`修改排序方法。
 
-  
+
 
 ## 9.4 区域水线
 
@@ -307,21 +307,21 @@
 
   ```c
   [linux-4.14/include/linux/mmzone.h]
-  
+
   263  enum zone_watermarks {
   264  	WMARK_MIN,
   265  	WMARK_LOW,
   266  	WMARK_HIGH,
   267  	NR_WMARK
   268  };
-  
+
   359  struct zone {
   		...
   362  	/* zone watermarks, access with *_wmark_pages(zone) macros 区域水线，使用*_wmark_pages(zone) 宏访问 */
   363  	unsigned long watermark[NR_WMARK];
   		...
   509  } ____cacheline_internodealigned_in_smp;
-  
+
   ```
 
 - 最低水线以下的内存称为紧急保留内存，在内存严重不足的紧急情况下，给承诺“给我少量紧急保留内存使用，我可以释放更多的内存”的进程使用。
@@ -367,13 +367,13 @@
 
   ```c
   [linux-4.14/include/linux/mmzone.h]
-  
+
   359  struct zone {
   		...
   376  	long lowmem_reserve[MAX_NR_ZONES];
   		...
   509  } ____cacheline_internodealigned_in_smp;
-  
+
   ```
 
   `zone[i]->lowmen_reserve[j]`表示区域类型 i 应该保留多少页不能借给区域类型 j，仅当j大于i时有意义。
@@ -388,14 +388,14 @@
   zone[i]->lowmen_reserve[j] = 0 (相同的区域类型不应该保留)
   (i < j):
   zone[i]->lowmen_reserve[j] = 0 (没意义，不会出现地区与类型从高区域类型借用物理页的情况)
-  
+
   ```
 
   数组`sysctl_lowmem_reserve_ratio`存放各种区域类型的保留比例，因为内核不允许使用浮点数，所以使用倒数值。DMA区域和DMA32区域的默认保留比例都是256，普通区域和高端内存区域的默认保留比例都是32.
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   205  int sysctl_lowmem_reserve_ratio[MAX_NR_ZONES-1] = {
   206  #ifdef CONFIG_ZONE_DMA
   207  	 256,
@@ -408,7 +408,7 @@
   214  #endif
   215  	 32,
   216  };
-  
+
   ```
 
   可以通过文件`/proc/sys/vm/lowmem_reserve_ratio`修改各种区域类型的保留比例。
@@ -429,7 +429,7 @@
 
   ```c
   [linux-4.14/include/linux/mmzone.h]
-  
+
   39  enum migratetype {
   40  	MIGRATE_UNMOVABLE, /* 不可移动 */
   41  	MIGRATE_MOVABLE,   /* 可移动 */
@@ -444,7 +444,7 @@
   63  #endif
   64  	MIGRATE_TYPES
   65  };
-  
+
   ```
 
   前面3种是真正的迁移类型，后面的迁移类型有特殊用途：`MIGRATE_HIGHATOMIC`用于高阶原子分配，`MIGRATE_CMA`用于连续内存分配器，`MIGRATE_ISOLATE`用来隔离物理页（由连续内存分配器、内存热插拔和从内存硬件错误恢复等功能使用）。
@@ -457,14 +457,14 @@
   97  	struct list_head	free_list[MIGRATE_TYPES];
   98  	unsigned long		nr_free;
   99  };
-  
+
   ```
 
 - 只有当物理内存足够大且每种迁移类型有足够多的物理页时，根据可移动性分组才有意义。全局变量`page_group_by_mobility_disabled`表示是否禁用根据可移动性分组。`vm_total_pages`是所有内存区域里面高水线以上的物理页总数，`pageblock_order`是按可移动性分组的阶数，`pageblock_nr_pages`是`pageblock_order`对应的页数。如果所有内存区域里面高水线以上物理页总数小于（`pageblock_nr_pages` * 迁移类型数量），那么禁用根据可移动性分组。
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   5234  void __ref build_all_zonelists(pg_data_t *pgdat)
   5235  {
   		...
@@ -481,22 +481,22 @@
   5253  		page_group_by_mobility_disabled = 0;
   		...
   5262  }
-  
+
   ```
 
 - `pageblock_order`是按可移动性分组的阶数，简称分组阶数，可以理解为一种迁移类型的一个页块的最小长度。如果内核支持巨型页，那么`pageblock_order`是巨型页的阶数，否则`pageblock_order`是伙伴分配器的最大分配阶。
 
   ```c
   [linux-4.14/include/linux/pageblock-flags.h]
-  
+
   42  #ifdef CONFIG_HUGETLB_PAGE
   44  #ifdef CONFIG_HUGETLB_PAGE_SIZE_VARIABLE
   45  
   46  /* Huge page sizes are variable 巨型页长度是可变的*/
-  47  extern unsigned int pageblock_order; 
+  47  extern unsigned int pageblock_order;
   49  #else /* CONFIG_HUGETLB_PAGE_SIZE_VARIABLE */
   51  /* Huge pages are a constant size 巨型页长度是固定的*/
-  52  #define pageblock_order		HUGETLB_PAGE_ORDER 
+  52  #define pageblock_order		HUGETLB_PAGE_ORDER
   54  #endif /* CONFIG_HUGETLB_PAGE_SIZE_VARIABLE */
   55  
   56  #else /* CONFIG_HUGETLB_PAGE */
@@ -505,15 +505,15 @@
   61  #endif /* CONFIG_HUGETLB_PAGE */
   62  
   63  #define pageblock_nr_pages	(1UL << pageblock_order)
-  
+
   ```
 
 - 申请页时，可以使用标志`__GFP_MOVABLE`指定申请可移动页，使用`__GFP_RECLAIMABLE`指定申请可回收页，如果没有指定这两个标志，表示申请不可移动页。函数`gfpflags_to_migratetype`用来把分配标志转换成迁移类型：
 
   ```c
   [linux-4.14/include/linux/gfp.h]
-  
-   
+
+
   292  /* Convert GFP flags to their corresponding migrate type 把分配标志转换成迁移类型*/
   293  #define GFP_MOVABLE_MASK (__GFP_RECLAIMABLE|__GFP_MOVABLE)
   294  #define GFP_MOVABLE_SHIFT 3
@@ -527,7 +527,7 @@
   305  	/* Group based on mobility 根据可移动性分组*/
   306  	return (gfp_flags & GFP_MOVABLE_MASK) >> GFP_MOVABLE_SHIFT;
   307  }
-  
+
   ```
 
   如果禁用根据可移动性分组，那么总是申请不可移动页。
@@ -536,7 +536,7 @@
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   1829  /*
   1830   * This array describes the order lists are fallen back to when
   1831   * the free lists for the desirable migrate type are depleted
@@ -552,7 +552,7 @@
   1841  	[MIGRATE_ISOLATE]     = { MIGRATE_TYPES }, /* Never used */
   1842  #endif
   1843  };
-  
+
   ```
 
   不可移动类型的备用类型按优先级从高到低是：可回收类型、可移动类型；可回收类型的备用类型按优先级从高到低是：不可移动类型、可移动类型；可移动类型的备用类型按优先级从高到低是：可回收类型、不可移动类型。
@@ -561,8 +561,8 @@
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
-  
+
+
   2217  /*
   2218   * Try finding a free buddy page on the fallback list and put it on the free
   2219   * list of requested migratetype, possibly along with other pages from the same
@@ -592,16 +592,16 @@
   2262  	}
       	...
   2293  }
-  
+
   ```
 
 - 释放物理页的时候，需要把物理页插入物理页所属迁移类型的空闲链表，内核怎么知道物理页的迁移类型？内存区域的`zone`结构体成员`pageblock_flags`指向页块标志位图，页块的大小是分组阶数`pageblock_order`，我们把这种页块称为分组页块。
 
   ```c
   [linux-4.14/include/linux/mmzone.h]
-  
+
   359  struct zone {
-  	 ... 
+  	 ...
   384  #ifndef CONFIG_SPARSEMEM
   385  	/*
   386  	 * Flags for a pageblock_nr_pages block. See pageblock-flags.h.
@@ -613,14 +613,14 @@
   390  #endif /* CONFIG_SPARSEMEM */
   	 ...
   509  } ____cacheline_internodealigned_in_smp;
-  
+
   ```
 
   每个分组页块在位图中占用4位，其中3位用来存放页块的迁移类型。
 
   ```c
   [linux-4.14/include/linux/pageblock-flags.h]
-  
+
   28  /* Bit indices that affect a whole block of pages 影响一个页块的位索引*/
   29  enum pageblock_bits {
   30  	PB_migrate,
@@ -634,7 +634,7 @@
   38  	 */
   39  	NR_PAGEBLOCK_BITS
   40  };
-  
+
   ```
 
 - 函数`set_pageblock_migratetype()`用来在页块标志位图中设置页块的迁移类型，函数`get_pageblock_migratetype()`用来获取页块的迁移类型。
@@ -644,7 +644,7 @@
   ```c
   free_area_init_core() -> free_area_init_core() -> memmap_init() -> memmap_init_zone()
   [linux-4.14/mm/page_alloc.c]
-   
+
   5269  void __meminit memmap_init_zone(unsigned long size, int nid, unsigned long zone,
   5270  		unsigned long start_pfn, enum memmap_context context)
   5271  {
@@ -662,7 +662,7 @@
   5349  		}
   5350  	}
   5351  }
-  
+
   ```
 
   可以通过文件`/proc/pagetypeinfo`查看各种迁移类型的页的分布情况。
@@ -675,13 +675,13 @@
 
   ```c
   [linux-4.14/include/linux/mmzone.h]
-  
+
   359  struct zone {
   		...
   382  	struct per_cpu_pageset __percpu *pageset;/* 在每个处理器上有一个页集合 */
   		...
   509  } ____cacheline_internodealigned_in_smp;
-  
+
   274  struct per_cpu_pages {
   275  	int count;		/* number of pages in the list 链表里页的数量 */
   276  	int high;		/* high watermark, emptying needed 如果页的数量达到高水线，需要返还给伙伴分配器 */
@@ -695,7 +695,7 @@
   284  	struct per_cpu_pages pcp;
   		...
   293  };
-  
+
   ```
 
   内存区域在每个处理器上有一个页集合，页集合中每种迁移类型有一个页链表，页集合有高水线和批量值，页集合中页数量不能超过高水线。申请单页加入页链表，或者从页链表返还给伙伴分配器，都是采用批量操作，一次操作的页数量是批量值。

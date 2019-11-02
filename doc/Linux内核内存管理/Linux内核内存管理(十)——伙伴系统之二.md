@@ -1,4 +1,4 @@
-# Linux内核分析(十)——伙伴系统之二
+# Linux内核内存管理(十)——伙伴系统之二
 
 ## 10.1 分配页
 
@@ -52,7 +52,7 @@
 
 - 回收修饰符
 
-  > `__GFP_IO`: 允许使用写存储设备。 
+  > `__GFP_IO`: 允许使用写存储设备。
   >
   > `__GFP_FS`: 允许向下调用到底层文件系统。当文件系统申请页的时候，如果内存严重不足，直接回收页，把脏页回写到存储设备，调用文件系统的函数，可能导致死锁，为了避免死锁，文件系统申请页的时候应该清除这个标志位。
   >
@@ -76,11 +76,11 @@
   >
   >`__GFP_COMP`: 把分配的页块组成复合页（`compound page`）。
   >
-  >`__GFP_ZERO`: 把页用零初始化。 
+  >`__GFP_ZERO`: 把页用零初始化。
 
 
 
-### 3. 组合标志位 
+### 3. 组合标志位
 
 - 因为标志位总是组合使用，所以内核定义了一些标志位组合。常用的标志位组合有如下几种。
 
@@ -88,56 +88,56 @@
 
   ```c
   #define GFP_ATOMIC	(__GFP_HIGH|__GFP_ATOMIC|__GFP_KSWAPD_RECLAIM)
-  
+
   ```
 
 - `GFP_KERNEL`: 分配内核使用的页，可能睡眠。从低端内存区域分配页，允许异步回收页和直接回收页，允许读写存储设备，允许调用到底层文件系统。
 
   ```c
   #define GFP_KERNEL	(__GFP_RECLAIM | __GFP_IO | __GFP_FS)
-  
+
   ```
 
 - `GFP_NOWAIT`: 分配内核使用的页，不能等待。允许异步回收页，不允许直接回收页，不允许读写存储设备，不允许调用到底层文件系统。
 
   ```c
   #define GFP_NOWAIT	(__GFP_KSWAPD_RECLAIM)
-  
+
   ```
 
 - `GFP_NOIO`: 不允许读写存储设备，允许异步回收页和直接回收页。请尽量避免直接使用这个标志位，应该使用函数`memalloc_noio_save`和`memalloc_noio_restore`标记一个不能读写存储设备的范围，前者设置进程标志位`PF_MEMALLOC_NOIO`，后者清除进程标志位`PF_MEMALLOC_NOIO`。
 
   ```c
   #define GFP_NOIO	(__GFP_RECLAIM)
-  
+
   ```
 
 - `GFP_NOFS`: 不允许调用到底层文件系统，允许异步回收页和直接回收页，允许读写存储设备。请尽量避免使用这个标志位，应该使用函数`memalloc_nofs_save`和`memalloc_nofs_restore`标记一个不能调用到文件系统的范围，前者设置进程标志位`PF_MEMALLOC_NOFS`，后者清除进程标志位`PF_MEMALLOC_NOFS`。
 
   ```c
   #define GFP_NOFS	(__GFP_RECLAIM | __GFP_IO)
-  
+
   ```
 
 - `GFP_USER`: 分配用户空间使用的页，内核或硬件页可以直接访问，从普通区域分配，允许异步回收页和直接回收页，允许读写存储设备，允许调用到文件系统，允许实施`cpuset`内存分配策略。
 
   ```c
   #define GFP_USER	(__GFP_RECLAIM | __GFP_IO | __GFP_FS | __GFP_HARDWALL)
-  
+
   ```
 
 - `GFP_HIGHUSER`: 分配用户空间使用的页，内核不需要直接访问，从高端内存区域分配，物理页在使用的过程中不可移动。
 
   ```c
   #define GFP_HIGHUSER	(GFP_USER | __GFP_HIGHMEM)
-  
+
   ```
 
 - `GFP_HIGHUSER_MOVABLE`: 分配用户空间使用的页，内核不需要直接访问，物理页可以通过页回收或页迁移技术移动。
 
   ```c
   #define GFP_HIGHUSER_MOVABLE	(GFP_HIGHUSER | __GFP_MOVABLE)
-  
+
   ```
 
 - `GFP_TRANSHUGE_LIGHT`: 分配用户空间使用的巨型页，把分配的页块组成复合页，禁止使用紧急保留内存，禁止打印警告信息，不允许异步回收页和直接回收页。
@@ -145,14 +145,14 @@
   ```c
   #define GFP_TRANSHUGE_LIGHT	((GFP_HIGHUSER_MOVABLE | __GFP_COMP | \
     			 __GFP_NOMEMALLOC | __GFP_NOWARN) & ~__GFP_RECLAIM)
-  
+
   ```
 
 - `GFP_TRANSHUGE`: 分配用户空间使用的巨型页，和`GFP_TRANSHUGE_LIGHT`的区别是允许直接回收页。
 
   ```c
   #define GFP_TRANSHUGE	(GFP_TRANSHUGE_LIGHT | __GFP_DIRECT_RECLAIM)
-  
+
   ```
 
 
@@ -174,11 +174,11 @@
 
   ```c
   /* linux-4.14/include/linux/mm_types.h */
-  
+
   42  struct page {
 	44  	unsigned long flags;
   46  	union {
-  47  		struct address_space *mapping;	
+  47  		struct address_space *mapping;
   54  		void *s_mem;			
   55  		atomic_t compound_mapcount;	/* 映射计数，第一个尾页 */
   56  		/* page_deferred_list().next	 -- 第二个尾页 */
@@ -203,7 +203,7 @@
   170  	};
       	...
   213  }
-  
+
   ```
 
 
@@ -218,13 +218,13 @@
 
   ```c
   [linux-4.14/include/linux/mmzone.h]
-  
+
   359  struct zone {
   	 	...
   365  	unsigned long nr_reserved_highatomic;
   		...
   509  } ____cacheline_internodealigned_in_smp;
-  
+
   ```
 
 - 执行高阶原子分配时，先从高阶原子类型分配页，如果分配失败，从调用者指定的迁移类型分配页。分配成功以后，如果内存区域中高阶原子类型的总页数小于限制，并且页块的迁移类型不是高阶原子类型、隔离类型和CMA迁移类型，那么把页块的迁移类型转换为高阶原子类型，并且把页块中没有分配出去的页移到高阶原子类型的空闲链表中。
@@ -233,7 +233,7 @@
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   3594  static inline struct page *
   3595  __alloc_pages_direct_reclaim(gfp_t gfp_mask, unsigned int order,
   3596  		unsigned int alloc_flags, const struct alloc_context *ac,
@@ -264,14 +264,14 @@
   3620  
   3621  	return page;
   3622  }
-  
+
   ```
 
 - 如果直接回收页没有进展超过16次，那么针对目标区域，不再为高阶原子分配保留页，把高阶原子类型的页块转换成申请的迁移类型，其代码如下：
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   3728  static inline bool
   3729  should_reclaim_retry(gfp_t gfp_mask, unsigned order,
   3730  		     struct alloc_context *ac, int alloc_flags,
@@ -293,7 +293,7 @@
   3753  	}
   		...
   3817  }
-  
+
   ```
 
 
@@ -307,10 +307,10 @@
 - 所有分配页的函数最终都会调用到函数`__alloc_pages_nodemask`，这个函数被称为分区的伙伴分配器心脏。其函数原型如下：
   ```c
   struct page *__alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order, int preferred_nid, nodemask_t *nodemask)
-      
+
   ```
   参数如下：
-  
+
   >gfp_mask: 分配标志位。
   >
   >order： 阶数。
@@ -318,9 +318,9 @@
   >preferred_nid： 指定内存节点，用于获取备用区域列表。
   >
   >nodemask: 允许从哪些内存节点分配页，如果调用者没有要求，可以传入空指针。
-  
+
   算法如下：
-  
+
   > 1. 根据分配标志位得到首选区域类型和迁移类型；
   > 2. 执行快速路径，使用低水线尝试第一次分配；
   > 3. 如果快速路径分配失败，那么执行慢速路径。
@@ -329,25 +329,25 @@
 
   ```c
   [linux-4.14/mm/internal.h]
-  
+
   475  #define ALLOC_WMARK_MIN		WMARK_MIN /* 0x00,使用最低水位线 */
   476  #define ALLOC_WMARK_LOW		WMARK_LOW /* 0x01，使用低水线 */
   477  #define ALLOC_WMARK_HIGH	WMARK_HIGH /* 0x02，使用高水线 */
   478  #define ALLOC_NO_WATERMARKS	0x04 /* 完全不检查水线 */
   481  #define ALLOC_WMARK_MASK	(ALLOC_NO_WATERMARKS-1) /* 得到水线位的掩码 */
-  
+
   494  #define ALLOC_HARDER		0x10 /* try to alloc harder 试图更努力分配 */
   495  #define ALLOC_HIGH		0x20 /* __GFP_HIGH set 设置了__GFP_HIGH，调用者是高优先级的 */
   496  #define ALLOC_CPUSET		0x40 /* check for correct cpuset 检查cpuset是否允许进程从某个内存节点分配 */
   497  #define ALLOC_CMA		0x80 /* allow allocations from CMA areas 允许从CMA（连续内存分配器）迁移类型分配 */
-  
+
   ```
 
 - 函数`__alloc_pages_nodemask`定义及解析如下：
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   4149  /*
   4150   * This is the 'heart' of the zoned buddy allocator.
   4151   */
@@ -413,7 +413,7 @@
   4208  
   4209  	return page;
   4210  }
-  
+
   ```
 
 
@@ -424,7 +424,7 @@
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   4101  static inline bool prepare_alloc_pages(gfp_t gfp_mask, unsigned int order,
   4102  		int preferred_nid, nodemask_t *nodemask,
   4103  		struct alloc_context *ac, gfp_t *alloc_mask,
@@ -460,7 +460,7 @@
   4129  
   4130  	return true;
   4131  }
-  
+
   ```
 
   `prepare_alloc_pages()`函数分析完毕
@@ -471,7 +471,7 @@
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   4133  /* Determine whether to spread dirty pages and what the first usable zone */
   4134  static inline void finalise_ac(gfp_t gfp_mask,
   4135  		unsigned int order, struct alloc_context *ac)
@@ -488,15 +488,15 @@
   4145  	ac->preferred_zoneref = first_zones_zonelist(ac->zonelist,
   4146  					ac->high_zoneidx, ac->nodemask);
   4147  }
-  
+
   ```
 
   `finalise_ac() -> first_zones_zonelist() -> next_zones_zonelist() -> __next_zones_zonelist()`, 函数`finalise_ac()`最终调用`__next_zones_zonelist()`，函数`__next_zones_zonelist()`返回合适的内存区域zone，以供后续分配。其定义及解析如下：
 
   ```c
-  
+
   [linux-4.14/mm/mmzone.c]
-  
+
   55  /* Returns the next zone at or below highest_zoneidx in a zonelist */
   56  struct zoneref *__next_zones_zonelist(struct zoneref *z,
   57  					enum zone_type highest_zoneidx,
@@ -517,17 +517,17 @@
   71  
   72  	return z;
   73  }
-  
+
   [linux-4.14/include/linux/mmzone.h]
   587  struct zoneref {
   588  	struct zone *zone;	/* Pointer to actual zone */
   589  	int zone_idx;		/* zone_idx(zoneref->zone) */
   590  };
-  
+
   606  struct zonelist {
   607  	struct zoneref _zonerefs[MAX_ZONES_PER_ZONELIST + 1];
   608  };
-  
+
   ```
 
   函数`__next_zones_zonelist()`是计算zone的核心函数，这里highest_zoneidx是通过`gfp_zone()`函数计算分配标志位`gfp_mask`而来。数据结构`struct zonelist`有一个`zonerefs`数组（`struct zoneref`类型），而`zoneref`数据结构里有一个成员`zone`（`struct zone`类型）指针会指向zone数据结构，还有一个`zone_idx`成员指向zone的编号。zone在系统处理时会初始化这个数组，具体函数在`build_zonelists_node()`中。
@@ -552,7 +552,7 @@
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   3079  /*
   3080   * get_page_from_freelist goes through the zonelist trying to allocate
   3081   * a page.
@@ -661,14 +661,14 @@
   3181  
   3182  	return NULL;
   3183  }
-  
+
   ```
 
 - `get_page_from_freelist() -> zone_watermark_fast()`,`zone_watermark_fast()`函数负责检查区域的空闲页数是否大于水线，其代码如下：
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   3028  static inline bool zone_watermark_fast(struct zone *z, unsigned int order,
   3029  		unsigned long mark, int classzone_idx, unsigned int alloc_flags)
   3030  {
@@ -694,7 +694,7 @@
   3050  	return __zone_watermark_ok(z, order, mark, classzone_idx, alloc_flags,
   3051  					free_pages);
   3052  }
-  
+
   ```
 
   第`3034~3048`行代码，针对0阶执行快速检查：
@@ -707,7 +707,7 @@
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   2936  /*
   2937   * Return true if free base pages are above 'mark'. For high-order checks it
   2938   * will return true of the order-0 watermark is reached and there is at least
@@ -766,13 +766,13 @@
   2988  	if (free_pages <= min + z->lowmem_reserve[classzone_idx])
   2989  		return false;
   2990  
-  2991  	/* If this is an order-0 request then the watermark is fine 
+  2991  	/* If this is an order-0 request then the watermark is fine
   		 * 如果只申请一页，那么允许从这个区域分配页。
   		 */
   2992  	if (!order)
   2993  		return true;
   2994  
-  2995  	/* For a high-order request, check at least one suitable page is free 
+  2995  	/* For a high-order request, check at least one suitable page is free
   		 * 如果申请阶数大于0
   		 */
   2996  	for (o = order; o < MAX_ORDER; o++) {
@@ -799,14 +799,14 @@
   3017  	}
   3018  	return false;
   3019  }
-  
+
   ```
 
 - `get_page_from_freelist() -> rmqueue()`，函数`rmqueue()`辅助分配页，其代码如下：
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   2804  /*
   2805   * Allocate a page from the given zone. Use pcplists for order-0 allocations.
   2806   */
@@ -861,14 +861,14 @@
   2854  	local_irq_restore(flags);
   2855  	return NULL;
   2856  }
-  
+
   ```
 
 - 当申请阶数为0时，则从每处理器页集合分配页，调用函数`rmqueue_pcplist()`，即`rmqueue() -> rmqueue_pcplist()`， 该函数负责从内存区域的每处理器页集合分配页，其把主要工作委托给函数`__rmqueue_pcplist()`,函数`__rmqueue_pcplist()`定义如下：
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   2754  static struct page *__rmqueue_pcplist(struct zone *zone, int migratetype,
   2755  			bool cold, struct per_cpu_pages *pcp,
   2756  			struct list_head *list)
@@ -895,7 +895,7 @@
   2777  
   2778  	return page;
   2779  }
-  
+
   ```
 
 - 当申请阶数大于0，且从指定迁移类型分配页时，调用函数`__rmqueue()`，即`rmqueue() -> __rmqueue()`，函数`__rmqueue()`的处理流程如下：
@@ -925,7 +925,7 @@
   2314  	trace_mm_page_alloc_zone_locked(page, order, migratetype);
   2315  	return page;
   2316  }
-  
+
   ```
 
 - `__rmqueue() -> __rmqueue_smallest()`， `__rmqueue_smallest()`函数从申请阶数到最大阶数逐个尝试：
@@ -936,7 +936,7 @@
   为什么`zone`当前`order`对应的空闲区域`free_area`中相应的`migratetype`类型的链表里会没有空闲对象？这是因为在系统刚启动时，空闲页面会尽可能地都分配到`MAX_ORDER - 1`的链表中，这个可以在系统刚起来之后，通过`cat /proc/pagetypeinfo`命令看出。
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   1802  static inline
   1803  struct page *__rmqueue_smallest(struct zone *zone, unsigned int order,
   1804  						int migratetype)
@@ -962,14 +962,14 @@
   1824  
   1825  	return NULL;
   1826  }
-  
+
   ```
 
 - `__rmqueue_smallest() -> expand()`，当找到某一个`order`的空闲区中对应的`migratetype`类型的链表中有空闲内存块时， 就会从中把一个内存块取出来，然后调用函数`expand()`来切割，因为通常取出来的页块要比申请的内存页块大，切完之后需要把剩下的内存块重新放回伙伴系统中。其定义如下：
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   1650  static inline void expand(struct zone *zone, struct page *page,
   1651  	int low, int high, struct free_area *area,
   1652  	int migratetype)
@@ -996,16 +996,16 @@
   1673  		set_page_order(&page[size], high);
   1674  	}
   1675  }
-  
+
   ```
 
   这里参数`high`就是`current_order`，通常要大于申请阶数order，即参数`low`，每比较一次，`area`减1，相当于退了一级order，最后通过`list_add()`把剩下的内存块添加到低一级的空闲链表中。
-  
+
 - 回到`__rmqueue()`函数，`__rmqueue() -> __rmqueue_fallback()`，函数`__rmqueue_fallback()`负责从备用迁移类型盗用页，从最大分配阶向下到申请阶数逐个尝试，依次查看备用类型优先级列表中的每种迁移类型是否有空闲页块，如果有，就从这种迁移类型盗用页。
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   2227  static inline bool
   2228  __rmqueue_fallback(struct zone *zone, int order, int start_migratetype)
   2229  {
@@ -1074,7 +1074,7 @@
   2291  	return true;
   2292  
   2293  }
-  
+
   ```
 
 ### 10.2.3 慢速路径
@@ -1093,7 +1093,7 @@
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   3852  static inline struct page *
   3853  __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
   3854  						struct alloc_context *ac)
@@ -1147,7 +1147,7 @@
   3897  	if (!ac->preferred_zoneref->zone)
   3898  		goto nopage;
   3899
-      	/* 
+      	/*
       	 * 异步回收页，唤醒回收线程，页回收我们会在后续章节中讲述
       	 */
   3900  	if (gfp_mask & __GFP_KSWAPD_RECLAIM)
@@ -1215,7 +1215,7 @@
   3954  	}
   3955  
   3956  retry:
-  3957  	/* Ensure kswapd doesn't accidentally go to sleep as long as we loop 
+  3957  	/* Ensure kswapd doesn't accidentally go to sleep as long as we loop
   		 * 确保页回收线程在我们循环的时候不会意外地睡眠
   		*/
   3958  	if (gfp_mask & __GFP_KSWAPD_RECLAIM)
@@ -1238,14 +1238,14 @@
   3972  					ac->high_zoneidx, ac->nodemask);
   3973  	}
   3974  
-  3975  	/* Attempt with potentially adjusted zonelist and alloc_flags 
+  3975  	/* Attempt with potentially adjusted zonelist and alloc_flags
   		 * 使用可能调整过的区域列表和分配标志尝试
   		*/
   3976  	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
   3977  	if (page)
   3978  		goto got_pg;
   3979  
-  3980  	/* Caller is not willing to reclaim, we can't balance anything 
+  3980  	/* Caller is not willing to reclaim, we can't balance anything
   		 * 调用者不愿意等待，不允许直接回收页，那么放弃
   		*/
   3981  	if (!can_direct_reclaim)
@@ -1304,20 +1304,20 @@
   4025  		goto retry;
   4026  
   4027  
-  4028  	/* Deal with possible cpuset update races before we start OOM killing 
+  4028  	/* Deal with possible cpuset update races before we start OOM killing
   		 * 如果cpuset修改了允许当前进程从哪些内存节点申请页，那么需要重试
   		*/
   4029  	if (check_retry_cpuset(cpuset_mems_cookie, ac))
   4030  		goto retry_cpuset;
   4031  
-  4032  	/* Reclaim has failed us, start killing things 
+  4032  	/* Reclaim has failed us, start killing things
   		 * 使用内存耗尽杀手选择一个进程杀死
   		*/
   4033  	page = __alloc_pages_may_oom(gfp_mask, order, ac, &did_some_progress);
   4034  	if (page)
   4035  		goto got_pg;
   4036  
-  4037  	/* Avoid allocations with no watermarks from looping endlessly 
+  4037  	/* Avoid allocations with no watermarks from looping endlessly
   		 * 如果当前进程正在被内存耗尽杀手杀死，并且忽略水线或者不允许使用紧急保留内存，那么不要无限循环
   		*/
   4038  	if (tsk_is_oom_victim(current) &&
@@ -1384,14 +1384,14 @@
   4097  got_pg:
   4098  	return page;
   4099  }
-  
+
   ```
-  
+
 - 页分配器使用函数`gfp_to_alloc_flags()`把分配标志位转换成内部分配标志位，其代码如下：
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   3638  static inline unsigned int
   3639  gfp_to_alloc_flags(gfp_t gfp_mask)
   3640  {
@@ -1436,7 +1436,7 @@
   3672  #endif
   3673  	return alloc_flags;
   3674  }
-  
+
   ```
 
 
@@ -1454,7 +1454,7 @@
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   void __free_pages(struct page *page, unsigned int order)
   {
   	if (put_page_testzero(page)) {
@@ -1464,7 +1464,7 @@
   			__free_pages_ok(page, order);
   	}
   }
-  
+
   ```
 
   - 首先把页的引用计数减1（由`put_page_testzero()`函数实现），只有页的引用计数变成0，才真正释放页：如果阶数是0，不还给伙伴分配器，而是当做缓存热页添加到每处理器页集合中；如果阶数大于0，调用`__free_pages_ok()`函数以释放页。
@@ -1473,7 +1473,7 @@
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   2600  void free_hot_cold_page(struct page *page, bool cold)
   2601  {
   2602  	struct zone *zone = page_zone(page);
@@ -1527,14 +1527,14 @@
   2643  out:
 2644  	local_irq_restore(flags);
   2645  }
-  
+
   ```
 
 - 函数`__free_pages_ok()`负责释放阶数大于0的页块，最终调用到释放页的核心函数`__free_one_page()`，算法是：如果伙伴是空闲的，并且伙伴在同一个内存区域，那么和伙伴合并，注意隔离类型的页块和其他类型的页块不能合并。算法还做了优化处理：假设最后合并成的页块阶数是order，如果order小于（MAX_ORDER-2），则检查（order+1）阶的伙伴是否空闲，如果空闲，那么order阶的伙伴可能正在释放，很快就可以合并成（order+2）阶的页块。为了防止当前页块很快被分配出去，把当前页块添加到空闲链表的尾部。其代码如下：
 
   ```c
   [linux-4.14/mm/page_alloc.c]
-  
+
   1250  static void __free_pages_ok(struct page *page, unsigned int order)
   1251  {
   1252  	unsigned long flags;
@@ -1550,7 +1550,7 @@
   1262  	free_one_page(page_zone(page), page, pfn, order, migratetype);
   1263  	local_irq_restore(flags);
   1264  }
-  
+
   1163  static void free_one_page(struct zone *zone,
   1164  				struct page *page, unsigned long pfn,
   1165  				unsigned int order,
@@ -1564,8 +1564,8 @@
   1173  	__free_one_page(page, pfn, zone, order, migratetype);
   1174  	spin_unlock(&zone->lock);
   1175  }
-  
-  
+
+
   807  static inline void __free_one_page(struct page *page,
   808  		unsigned long pfn,
   809  		struct zone *zone, unsigned int order,
@@ -1678,7 +1678,5 @@
   905  out:
   906  	zone->free_area[order].nr_free++;
   907  }
-  
-  ```
 
-  
+  ```

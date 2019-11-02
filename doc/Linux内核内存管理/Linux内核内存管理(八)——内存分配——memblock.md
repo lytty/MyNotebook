@@ -1,4 +1,4 @@
-# Linux内核分析(八)——内存分配——memblock
+# Linux内核内存管理(八)——内存分配——memblock
 
 ## 1. memblock
 
@@ -10,7 +10,7 @@
 - 内存中的某些部分是永久的分配给内核的，比如内核代码段和数据段，`ramdisk`和`fdt`占用的空间等。它们是系统内存的一部分，但是不能被侵占，也不参与内存分配，称之为静态内存；还有，`GPU`、`Camera`等都需要预留大量连续内存，这部分内存平时不用，但是系统必须提前预留好，称之为预留内存；最后，内存的其余部分称之为动态内存，是需要内存管理的宝贵资源。
 - 在开机阶段内存以内存区块来管理，`memblock`把物理内存划分为若干内存区块，内存区块由结构体`struct memblock_region`来描述，`Memblock`中有两种内存类型, `memory`和`reserved`，`memory`用于记录总的内存资源，`reserved`用于记录已经使用或者预留的内存资源。
 
-  
+
 
 ## 2. memblock 相关数据结构
 
@@ -64,7 +64,7 @@
 
 > 结构体`memblock`、`memblock_type`、`memblock_region`之间的逻辑关系如下图：
 
-![img](../picture/memblock数据结构.png) 
+![img](../picture/memblock数据结构.png)
 
 > 在memblock中，管理内存的数据结构（struct memblock）被定义为一个全局的变量，并且赋予了对应的初值。
 
@@ -107,7 +107,7 @@
 
 memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大小是128，memblock.reserved.regions 指向memblock_reserved_init_regions 数组，数组大小是128，memblock.physmem.regions 指向 memblock_physmem_init_regions 数组，数组大小是4。memblock 初始化后如下图：
 
-![img](/home/haibin.xu/haibin/doc/picture/memblock初始化图.png) 
+![img](/home/haibin.xu/haibin/doc/picture/memblock初始化图.png)
 
 
 
@@ -132,12 +132,12 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   600  	memblock_dbg("memblock_add: [%pa-%pa] %pF\n",
   601  		     &base, &end, (void *)_RET_IP_);
   602  	/* 调用memblock_add_range(),
-  		 * memblock.memory: memblock 即上面介绍的全局变量，memblock.memory就是可用内存集合。 
+  		 * memblock.memory: memblock 即上面介绍的全局变量，memblock.memory就是可用内存集合。
   		 */
   603  	return memblock_add_range(&memblock.memory, base, size, MAX_NUMNODES, 0);
   604  }
-  
-   
+
+
   428  /**
   429   * memblock_merge_regions - merge neighboring compatible regions
   430   * @type: memblock type to scan
@@ -154,7 +154,7 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   441  		struct memblock_region *next = &type->regions[i + 1];
   442  
   443  		if (this->base + this->size != next->base || //前一个内存区域的结尾地址不等于下一个内存区域的起始地址
-  444  		    memblock_get_region_node(this) != 
+  444  		    memblock_get_region_node(this) !=
   445  		    memblock_get_region_node(next) || //两个内存区域不是同一个node
   446  		    this->flags != next->flags) { //两个内存区域的标志不一样
   447  			BUG_ON(this->base + this->size > next->base);
@@ -168,7 +168,7 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   455  		type->cnt--; //内存区域计数减1
   456  	}
   457  }
-  
+
   459  /**
   460   * memblock_insert_region - insert new memblock region
   461   * @type:	memblock type to insert into
@@ -201,7 +201,7 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   484  	type->cnt++;//新加的内存区域个数加1
   485  	type->total_size += size;//总的内存大小累加
   486  }
-  
+
   488  /**
   489   * memblock_add_range - add new memblock region
   490   * @type: memblock type to add new region into
@@ -305,13 +305,13 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   586  		return 0;
   587  	}
   588  }
-  
-  
+
+
   ```
 
   第一次调用`memblock_add()`函数，只执行到 memblock_add_range（）526行，repeat标志位下的代码不再执行，在arm 32位下，没有再去调用`memblock_add()`函数，而在arm 64位下，第一次调用`memblock_add()`函数后，返回到setup_arch() 函数，把dtf 得到的memory base和size信息添加到memblock后，继续执行arm64_memblock_init()，在arm64_memblock_init()函数中，再一次调用了`memblock_add()`函数，此时就会执行repeat标志位下的代码。
 
-  
+
 
 
 ### 3.2 memblock_remove
@@ -329,16 +329,16 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
 
   ​																											|-> memblock_remove_region()
 
-- `memblock_remove()`函数定义如下，其中`memblock_isolate_range()`函数的作用是把要移除的区域标识出来，`start_rgn`标识了移除区域的起始位置，`end_rgn`是结束位置，最用调用`memblock_remove_region()`函数把这些区域移除，部分函数前面已解析过，其他函数也比较简单，暂不做过多解析： 
+- `memblock_remove()`函数定义如下，其中`memblock_isolate_range()`函数的作用是把要移除的区域标识出来，`start_rgn`标识了移除区域的起始位置，`end_rgn`是结束位置，最用调用`memblock_remove_region()`函数把这些区域移除，部分函数前面已解析过，其他函数也比较简单，暂不做过多解析：
 
   ```c
   [linux-4.14/mm/memblock.c]
-  
+
   697  int __init_memblock memblock_remove(phys_addr_t base, phys_addr_t size)
   698  {
   699  	return memblock_remove_range(&memblock.memory, base, size);
   700  }
-  
+
   682  static int __init_memblock memblock_remove_range(struct memblock_type *type,
   683  					  phys_addr_t base, phys_addr_t size)
   684  {
@@ -354,8 +354,8 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   694  	return 0;
   695  }
   696  
-  
-  
+
+
   606  /**
   607   * memblock_isolate_range - isolate given range into disjoint memblocks
   608   * @type: memblock type to isolate range for
@@ -431,8 +431,8 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   677  	}
   678  
   679  	return 0;
-  680  } 
-  
+  680  }
+
   269  static void __init_memblock memblock_remove_region(struct memblock_type *type, unsigned long r)
   270  {
   271  	type->total_size -= type->regions[r].size;
@@ -460,7 +460,7 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
 
   1. 遍历memory类型内存的region，并从中剔除掉已经分配的内存，已经分配的内存以region的形式存放在rserved类型内存中，从中分配合适的内存。
   2. 调用memblock_reserve函数将分配的内存以region的形式存放在rserved类型内存中。
-  
+
   ```c
   [linux-4.14/include/linux/memblock.h]
   /* Definition of memblock flags. */
@@ -471,15 +471,15 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   300  #define MEMBLOCK_ALLOC_ACCESSIBLE	0
   [linux-4.14/include/linux/numa.h]
   14  #define	NUMA_NO_NODE	(-1)
-  
-  
+
+
   [linux-4.14/mm/memblock.c]
   1207  phys_addr_t __init memblock_alloc(phys_addr_t size, phys_addr_t align)
   1208  {
   1209  	return memblock_alloc_base(size, align, MEMBLOCK_ALLOC_ACCESSIBLE);
   1210  }
-  
-  /* memblock_alloc 最终调用到 memblock_alloc_range_nid, 中间调用了许多函数，这些函数实际上没有做什么，只不过多传了一些参数而已，此处就不列出来了 
+
+  /* memblock_alloc 最终调用到 memblock_alloc_range_nid, 中间调用了许多函数，这些函数实际上没有做什么，只不过多传了一些参数而已，此处就不列出来了
   start: 0
   end: MEMBLOCK_ALLOC_ACCESSIBLE // MEMBLOCK_ALLOC_ACCESSIBLE也为0
   nid: NUMA_NO_NODE // NUMA_NO_NODE 为-1
@@ -506,8 +506,8 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   1153  	}
   1154  	return 0;
   1155  }
-  
-  
+
+
   166  /**
   167   * memblock_find_in_range_node - find free area in given range and node
   168   * @size: size of free area to find
@@ -578,8 +578,8 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   232  	return __memblock_find_range_top_down(start, end, size, align, nid,
   233  					      flags);
   234  }
-  
-  
+
+
   128  /**
   129   * __memblock_find_range_top_down - find free area utility, in top-down
   130   * @start: start of candidate range
@@ -618,9 +618,9 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   163  	return 0;
   164  }
   ```
-  
+
   上面150行`for_each_free_mem_range_reverse`为一个for循环的宏， 内部调用了`__next_mem_range_rev()`函数，如下：
-  
+
   ```c
   [linux-4.14/include/linux/memblock.h]
   222  /**
@@ -639,7 +639,7 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   235  					p_nid)				\
   236  	for_each_mem_range_rev(i, &memblock.memory, &memblock.reserved,	\
   237  			       nid, flags, p_start, p_end, p_nid)
-      
+
   135  /**
   136   * for_each_mem_range_rev - reverse iterate through memblock areas from
   137   * type_a and not included in type_b. Or just type_a if type_b is NULL.
@@ -660,9 +660,9 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   152  	     i != (u64)ULLONG_MAX;					\
   153  	     __next_mem_range_rev(&i, nid, flags, type_a, type_b,	\
   154  				  p_start, p_end, p_nid))
-  
+
   [linux-4.14/mm/memblock.c]
-  
+
   962  /**
   963   * __next_mem_range_rev - generic next function for for_each_*_range_rev()
   964   *
@@ -784,12 +784,12 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   1069  	*idx = ULLONG_MAX;
   1070  }
   ```
-  
+
   回到`memblock_alloc_range_nid()`函数中：
-  
+
   ```c
   [linux-4.14/mm/memblock.c]
-  /* memblock_alloc 最终调用到 memblock_alloc_range_nid, 中间调用了许多函数，这些函数实际上没有做什么，只不过多传了一些参数而已，此处就不列出来了 
+  /* memblock_alloc 最终调用到 memblock_alloc_range_nid, 中间调用了许多函数，这些函数实际上没有做什么，只不过多传了一些参数而已，此处就不列出来了
   start: 0
   end: MEMBLOCK_ALLOC_ACCESSIBLE // MEMBLOCK_ALLOC_ACCESSIBLE也为0
   nid: NUMA_NO_NODE // NUMA_NO_NODE 为-1
@@ -837,7 +837,7 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   720  
   721  	return memblock_add_range(&memblock.reserved, base, size, MAX_NUMNODES, 0);
   722  }
-  
+
   ```
 
 - `memblock_free()`函数用于将一个region从memblock.reserved中移除，由其定义可知，其功能主要通过调用`memblock_remove_range()`函数来实现，该函数我们在 3.2 memblock_remove 章节中已经解析过，此处不再赘述：
@@ -870,7 +870,7 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
 
   ```c
   [linux-4.14/drivers/of/fdt.c]
-    
+
   1158  #ifdef CONFIG_HAVE_MEMBLOCK
   1159  #ifndef MIN_MEMBLOCK_ADDR
   1160  #define MIN_MEMBLOCK_ADDR	__pa(PAGE_OFFSET)
@@ -878,10 +878,10 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   1162  #ifndef MAX_MEMBLOCK_ADDR
   1163  #define MAX_MEMBLOCK_ADDR	((phys_addr_t)~0)
   1164  #endif
-  /*	
+  /*
   	base: 设备树内存节点中的起始地址值；
     	size: 该内存节点中包含内存的大小。
-    	arm32 内存节点中reg属性一般格式：reg = <0x60000000 0x40000000>;对应 base=0x60000000，size=0x40000000 
+    	arm32 内存节点中reg属性一般格式：reg = <0x60000000 0x40000000>;对应 base=0x60000000，size=0x40000000
   */
   1166  void __init __weak early_init_dt_add_memory_arch(u64 base, u64 size)
   1167  {
@@ -923,7 +923,7 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   1203  	}
   1204  	memblock_add(base, size);
   1205  }
-  
+
   ```
 
 - `early_init_dt_add_memory_arch()`函数最终调用memblock_add将dts指定的内存range以region的形式存入memory类型内存中。
@@ -944,12 +944,12 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
 
 - 以下两种情况需要特别说明：
 
-  > 1：物理内存结束地址与起始地址差值超过线性映射范围，此时kernel选择删除低端内存，保留高端内存。 
+  > 1：物理内存结束地址与起始地址差值超过线性映射范围，此时kernel选择删除低端内存，保留高端内存。
   > 2：kernel image在高端内存，并且超出了线性映射范围，此时kernel选择增加高端内存，删除低端内存。
 
 - `arm64_memblock_init()`函数内部调用流程
 
-  ![1564647104417](../picture/arm64_memblock_init调用流程.png) 
+  ![1564647104417](../picture/arm64_memblock_init调用流程.png)
 
 - `arm64_memblock_init()`函数解析
 
@@ -984,7 +984,7 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   388  	 * linear mapping. Take care not to clip the kernel which may be
   389  	 * high in memory.
   		 * memblock_remove删除高端内存，为了保证kernel image在线性映射区域。紧跟着后面几
-  		 * 行代码会判断是否需要删除低端内存，以保证memory内存物理起始地址差值不超过0x8000_0000_0000。 
+  		 * 行代码会判断是否需要删除低端内存，以保证memory内存物理起始地址差值不超过0x8000_0000_0000。
   390  	 */
   391  	memblock_remove(max_t(u64, memstart_addr + linear_region_size,
   392  			__pa_symbol(_end)), ULLONG_MAX);
@@ -1090,7 +1090,7 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   486  
   487  	memblock_allow_resize(); // 将memblock_can_resize置位
   488  }
-  
+
   ```
 
 
@@ -1123,7 +1123,5 @@ memblock.memory.regions 指向 memblock_memory_init_regions 数组，数组大�
   299  	arm_memblock_steal_permitted = false;
   300  	memblock_dump_all(); // 供memblock debug使用
   301  }
-  
-  ```
 
-  
+  ```

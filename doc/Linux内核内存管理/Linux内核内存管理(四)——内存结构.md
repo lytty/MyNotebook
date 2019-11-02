@@ -1,4 +1,4 @@
-# Linux内核分析(四)——内存结构
+# Linux内核内存管理(四)——内存结构
 
 ## 1. 物理地址空间
 
@@ -13,7 +13,7 @@
 
 - 程序只能通过虚拟地址访问外设寄存器。
 
-  
+
 
 ### 1.2 ARM64架构实现
 
@@ -54,7 +54,7 @@
 
 - 在实际应用中可以采用混合体系结构，在NUMA节点内部使用SMP体系结构。
 
-  
+
 
 ### 2.2 内存模型
 
@@ -85,7 +85,7 @@
 
   ```c
   // linux-4.14/arch/arm64/include/asm/mmzone.h
-  
+
   1  /* SPDX-License-Identifier: GPL-2.0 */
   2  #ifndef __ASM_MMZONE_H
   3  #define __ASM_MMZONE_H
@@ -99,14 +99,14 @@
   11  
   12  #endif /* CONFIG_NUMA */
   13  #endif /* __ASM_MMZONE_H */
-  14 
+  14
   ```
 
   arm linux 属于UMA体系结构，以下是struct pglist_data的定义，从615--622行，可以看出，在UMA体系结构中描述整个内存布局的只有一个单独的pglist_data节点。
 
   ```c
-  // linux-4.14/include/linux/mmzone.h 
-  
+  // linux-4.14/include/linux/mmzone.h
+
   615  /*
   616   * On NUMA machines, each NUMA node would have a pg_data_t to describe
   617   * it's memory layout. On UMA machines there is a single pglist_data which
@@ -238,7 +238,7 @@
 
   ```c
   /* linux-4.14/include/linux/mmzone.h */
-  
+
   302  enum zone_type {
   303  #ifdef CONFIG_ZONE_DMA
   304  	/*
@@ -311,7 +311,7 @@
 
   ```c
   /* linux-4.14/include/linux/mmzone.h */
-  
+
   359  struct zone {
   360  	/* Read-mostly fields */
   361  
@@ -485,7 +485,7 @@
 
     ```c
     /* linux-4.14/include/linux/mm_types.h */
-    
+
     29  /*
     30   * Each physical page in the system has a struct page associated with
     31   * it to keep track of whatever it is we are using the page for at the
@@ -674,9 +674,9 @@
     ```
 
     下面分别解析其主要成员的意义：
-    
+
     > flags
-    
+
     ```c
     /* linux-4.14/include/linux/mm_types.h */
     44  	unsigned long flags;		/* Atomic flags, some possibly
@@ -684,39 +684,39 @@
     ```
 
     1. 结构体page的成员flags的布局如下：
-    
+
        ```
        | [SECTION] | [NODE] | ZONE | [LAST_CPUPID] | ... | FLAGS |
        ```
-    
+
        ​       其中，SECTION是稀疏内存模型中的段编号，NODE是节点编号，ZONE是区域类型，FLAGS是该页面的标志位。
-    
+
        ​       而具体存放的内容与内核配置相关，例如SECTION编号和NODE节点编号与CONFIG_SPARSEMEM / CONFIG_SPARSEMEM_VMEMMAP配置相关，LAST_CPUID与CONFIG_NUMA_BALANCING配置相关。
-    
+
        ​       内联函数 page_to_nid 用来得到物理页所属的内存节点的编号，page_zonenum 用来得到物理页所属的内存区域的类型。两个函数内部具体的宏定义此处不再详述。
-    
+
        ```c
        /* linux-4.14/include/linux/mm.h */
-        
+
        900  static inline int page_to_nid(const struct page *page)
        901  {
        902  	return (page->flags >> NODES_PGSHIFT) & NODES_MASK;
        903  }
-        
+
        788  static inline enum zone_type page_zonenum(const struct page *page)
        789  {
        790  	return (page->flags >> ZONES_PGSHIFT) & ZONES_MASK;
        791  }
-        
+
        ```
-    
-       
-    
+
+
+
     2. 标志位是内存管理非常重要的部分，具体定义如下：
-    
+
        ```c
        /* linux-4.14/include/linux/page-flags.h */
-       
+
        75  enum pageflags {
        76  	PG_locked, /* 表示该页面已经上锁。如果该比特位置位，说明页面已经被锁定，内存管理的其他模块不能访问这个页面，以防发生竞争 */
        77  	PG_error, /* 表示页面操作过程中发生错误时会设置该位 */
@@ -783,22 +783,22 @@
        138  	PG_isolated = PG_reclaim,
        139  };
        ```
-    
+
        ​       内核定义了一些标准宏，用于检查页面是否设置了某个特定的标志位或者用于操作某些标志位。这些宏的名称都有一定的模式，具体如下：
-       
+
        > - PageXXX()用于检查页面是否设置了 PG_XXX 标志位。例如，PageLRU(page)检查PG_lru标志位是否置位了，PageDirty(page)检查PG_dirty标志位是否置位了。
        >
        > - SetPageXXX()设置页中的 PG_XXX 标志位。例如，SetPageLRU(page)用于设置PG_lru，SetPageDirty(page)用于设置PG_dirty标志位。
        > - ClearPageXXX()用于无条件地清楚某个特定的标志位。
        >
-       
+
        ​        
-       
+
        宏的实现在`linux-4.14/include/linux/page-flags.h`文件中，如下：
-       
+
        ```c
        /* linux-4.14/include/linux/page-flags.h */
-       
+
        196  /*
        197   * Macros to create function definitions for page flags
        198   */
@@ -815,13 +815,13 @@
        209  	{ clear_bit(PG_##lname, &policy(page, 1)->flags); }
        210  
        ```
-       
-       
+
+
     > mapping
-    
+
     ```c
     /* linux-4.14/include/linux/mm_types.h */
-    
+
     47  		struct address_space *mapping;	/* If low bit clear, points to
     48  						 * inode address_space, or NULL.
     49  						 * If page mapped as anonymous
@@ -829,11 +829,11 @@
     51  						 * it points to anon_vma object:
     52  						 * see PAGE_MAPPING_ANON below.
     53  						 */
-    
+
     ```
-    
+
     - struct page 数据结构中的mapping成员表示页面所指向的地址空间（address_space）。内核中的地址空间通常有两个不同的地址空间，一个用于文件映射页面，例如在读取文件时，地址空间用于将文件的内容数据与装载数据的存储介质区关联起来；另一个用于匿名映射。内核使用了一个简单直接的方式实现了“一个指针，两种用途”，mapping指针地址的最低位用于判断是否指向匿名映射或KSM页面的地址空间，如果是匿名映射，那么mapping指向匿名页面的地址空间数据结构struct anon_vma。
-    
+
       ```c
       394  #define PAGE_MAPPING_ANON	0x1
       395  #define PAGE_MAPPING_MOVABLE	0x2
@@ -848,22 +848,22 @@
       407  	return ((unsigned long)page->mapping & PAGE_MAPPING_ANON) != 0;
       408  }
       ```
-    
+
     > s_mem
-    
+
     ```c
     /* linux-4.14/include/linux/mm_types.h */
-    
+
     54  		void *s_mem;			/* slab first object */
     ```
-    
+
     - struct page 数据结构中的s_mem用于slab分配器，slab中第一个对象的开始地址，s_mem和mapping共同占用一个字节的存储空间。
-    
+
     > Second double word
-    
+
     ```c
     /* linux-4.14/include/linux/mm_types.h */
-    
+
     59  	/* Second double word */
     60  	union {
     61  		pgoff_t index;		/* Our offset within mapping. */
@@ -914,14 +914,14 @@
     106  		};
     107  	};
     ```
-    
+
     - 第二个双字由两个联合体组成。index表示这个页面在一个映射中的序号和偏移量；freelist用于slab分配器；_mapcount和_refcount是两个非常重要的引用计数。
-    
+
     > Third double word block
-    
+
     ```c
     /* linux-4.14/include/linux/mm_types.h */
-    
+
     109  	/*
     110  	 * Third double word block
     111  	 *
@@ -985,10 +985,10 @@
     169  #endif
     170  	};
     ```
-    
+
     - lru用于页面加入和删除LRU链表，其余一些成员用于slab或slub分配器
-    
-      
+
+
 
 ## 3. 物理内存初始化
 
@@ -1356,12 +1356,12 @@
   462  	struct free_area	free_area[MAX_ORDER]; /* 不同长度的空闲区域 */
   		...
   	}
-  
+
   96  struct free_area {
   97  	struct list_head	free_list[MIGRATE_TYPES];
   98  	unsigned long		nr_free;
   99  };
-  
+
   39  enum migratetype {
   40  	MIGRATE_UNMOVABLE,
   41  	MIGRATE_MOVABLE,
@@ -1437,7 +1437,7 @@
   5944  			memblock_virt_alloc_node_nopanic(usemapsize,
   5945  							 pgdat->node_id);
   5946  }
-  
+
   5922  static unsigned long __init usemap_size(unsigned long zone_start_pfn, unsigned long zonesize)
   5923  {
   5924  	unsigned long usemapsize;
@@ -1460,7 +1460,7 @@
   [linux-4.14/mm/page_alloc.c]
   5363  #define memmap_init(size, nid, zone, start_pfn) \
   5364  	memmap_init_zone((size), (nid), (zone), (start_pfn), MEMMAP_EARLY)
-  
+
   5264  /*
   5265   * Initially all pages are reserved - free ones are freed
   5266   * up by free_all_bootmem() once the early boot process is
@@ -1563,7 +1563,7 @@
   85  	set_pfnblock_flags_mask(page, flags, page_to_pfn(page),		\
   86  			end_bitidx,					\
   87  			(1 << (end_bitidx - start_bitidx + 1)) - 1)
-  
+
   [linux-4.14/mm/page_alloc.c]
   437  /**
   438   * set_pfnblock_flags_mask - Set the requested group of flags for a pageblock_nr_pages block of pages
@@ -1603,7 +1603,7 @@
   472  		word = old_word;
   473  	}
   474  }
-  
+
   476  void set_pageblock_migratetype(struct page *page, int migratetype)
   477  {
   478  	if (unlikely(page_group_by_mobility_disabled &&
@@ -1614,5 +1614,3 @@
   483  					PB_migrate, PB_migrate_end);
   484  }
   ```
-
-  

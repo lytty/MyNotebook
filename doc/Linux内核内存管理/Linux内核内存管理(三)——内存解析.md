@@ -1,4 +1,4 @@
-# Linux内核分析（三）——内存解析
+# Linux内核内存管理（三）——内存解析
 
 ## 1. 物理内存初始化
 
@@ -6,7 +6,7 @@
 
 ### 1.1 内存管理概述
 
-- 内存空间分为3个层次：用户空间层、内核空间层、硬件层。![avator](../picture/内存管理框图.png)
+- 内存空间分为3个层次：用户空间层、内核空间层、硬件层。             ![avator](../picture/内存管理框图.png)
   1. 用户空间层，可以理解为Linux内核内存管理为用户空间暴露的系统调用接口。
   2. 内核空间层，包含的模块相当丰富。用户空间和内核空间的接口是系统调用，因此内核空间层首先需要处理这些内存管理相关的系统调用，例如sys_brk、sys_mmap、sys_madvise等。接下来就包括VMA管理、缺页中断管理、匿名页面、page cache、页面回收、反向映射、slab分配器、页面管理等模块了。
   3. 硬件层，包括处理器的MMU、TLB、cache部件，以及板载的物理内存，例如LPDDR或者DDR。
@@ -15,8 +15,8 @@
 
 - 内核内存定义：
 
-  1. Linux-4.14/arch/arm/boot/dts/vexpress-v2p-ca9.dts               ![1560498518227](../picture/arm32内核内存定义.png)
-  2. linux-4.14/arch/arm64/boot/dts/sprd/sp9860g-1h10.dts![1560495908784](../picture/arm64内核内存定义.png)
+  1. Linux-4.14/arch/arm/boot/dts/vexpress-v2p-ca9.dts                                                           ![1560498518227](../picture/arm32内核内存定义.png)
+  2. linux-4.14/arch/arm64/boot/dts/sprd/sp9860g-1h10.dts                                                   ![1560495908784](../picture/arm64内核内存定义.png)
   3. 以上分别为arm32、arm64内核内存定义，vexpress-v2p-ca9.dts文件中定义了内核内存的起始地址为0x6000 0000， 大小为0x4000 0000，即1G大小的的内存空间。注意，此处的起始地址为物理地址。
   4. arm32、arm64内存定义因为地址位数不同稍有不同，具体可参考Linux设备树中节点的定义等相关知识，如https://www.linuxidc.com/Linux/2016-01/127337p6.htm
 
@@ -24,7 +24,7 @@
 
 1. 内核在启动的过程中，需要解析DTS（vexpress-v2p-ca9.dts、sp9832e-1h10.dts）文件，相关代码调用如下：![1560545103005](../picture/内存dts解析函数调用关系.png)
 
-   
+
 
 2. 函数解析
 
@@ -95,7 +95,7 @@
    1268  }
    ```
 
-   
+
 
    - linux-4.14/drivers/of/fdt.c
 
@@ -109,18 +109,18 @@
    1274  	of_scan_flat_dt(early_init_dt_scan_chosen, boot_command_line);
    1275  
    1276  	/* Initialize {size,address}-cells info */
-       	/* 扫描根节点，获取 {size,address}-cells信息，并保存在dt_root_size_cells和dt_root_addr_cells全局变量中 */ 
+       	/* 扫描根节点，获取 {size,address}-cells信息，并保存在dt_root_size_cells和dt_root_addr_cells全局变量中 */
    1277  	of_scan_flat_dt(early_init_dt_scan_root, NULL);
    1278  
    1279  	/* Setup memory, calling early_init_dt_add_memory_arch */
-       	/* 扫描DTB中的memory node，并把相关信息保存在meminfo中，全局变量meminfo保存了系统内存相关的信息。*/ 
+       	/* 扫描DTB中的memory node，并把相关信息保存在meminfo中，全局变量meminfo保存了系统内存相关的信息。*/
    1280  	of_scan_flat_dt(early_init_dt_scan_memory, NULL);
    1281  }
    ```
 
-   
 
-   - of_scan_flat_dt函数是用来scan整个device  tree，针对每一个node调用callback函数。"of_scan_flat_dt(early_init_dt_scan_memory, NULL)"针对memory node进行scan。 
+
+   - of_scan_flat_dt函数是用来scan整个device  tree，针对每一个node调用callback函数。"of_scan_flat_dt(early_init_dt_scan_memory, NULL)"针对memory node进行scan。
 
    ```c
    737  int __init of_scan_flat_dt(int (*it)(unsigned long node,
@@ -149,7 +149,7 @@
    759  }
    ```
 
-   
+
 
    - linux-4.14/drivers/of/fdt.c
 

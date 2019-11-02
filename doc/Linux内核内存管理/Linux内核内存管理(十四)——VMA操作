@@ -1,0 +1,226 @@
+# Linux内核内存管理(十四)——`VMA`操作
+- 在`32`位系统中，每个用户进程可以拥有`3GB`大小的虚拟地址空间，通常要远大于物理内存，那么如何管理这些虚拟地址空间呢？用户进程通常会多次调用`malloc()`或者使用`mmap()`接口映射文件到用户空间来进行读写等操作，这些操作都会要求在虚拟地址空间中分配内存块，这些内存块基本上都是离散的。`malloc()`是用户态常用的分配内存的接口`API`函数，`mmap()`是用户态常用的用于建立文件映射或匿名映射的函数，这两个函数我们在后续章节中都会详细介绍器内核实现机制。
+- 进程地址空间在内核中使用`struct vm_area_struct`数据结构来描述，简称`VMA`，也被称为进程地址空间或进程线性区。由于这些地址空间归属于各个用户进程，所以在用户进程的`struct mm_struct`数据结构中也有相应的成员，用于对这些 `VMA` 进行管理。
+
+- `VMA` 数据结构：`linux-4.14.130/include/linux/mm_types.h`
+
+  ```c
+  struct vm_area_struct {
+  	/* The first cache line has the info for VMA tree walking. */
+
+  	unsigned long vm_start;		/* Our start address within vm_mm. */
+  	unsigned long vm_end;		/* The first byte after our end address within vm_mm. */
+
+  	/* linked list of VM areas per task, sorted by address */
+  	struct vm_area_struct *vm_next, *vm_prev; /* 进程的 VMA 都连接成一个链表 */
+
+  	struct rb_node vm_rb; /* VMA 作为一个节点加入红黑树中，每个进程的 struct mm_struct 数据结构中都有这样一颗红黑树 mm->mm_rb */
+
+  	/*
+  	 * Largest free memory gap in bytes to the left of this VMA.
+  	 * Either between this VMA and vma->vm_prev, or between one of the
+  	 * VMAs below us in the VMA rbtree and its ->vm_prev. This helps
+  	 * get_unmapped_area find a free area of the right size.
+  	 */
+  	unsigned long rb_subtree_gap;
+
+  	/* Second cache line starts here. */
+
+  	struct mm_struct *vm_mm;	/* The address space we belong to. 指向该 VMA 所属的进程struct mm_struct 数据结构 */
+  	pgprot_t vm_page_prot;		/* Access permissions of this VMA. VMA的访问权限*/
+  	unsigned long vm_flags;		/* Flags, see mm.h. 描述该VMA的一组标志位*/
+
+  	/*
+  	 * For areas with an address space and backing store,
+  	 * linkage into the address_space->i_mmap interval tree.
+  	 */
+  	struct {
+  		struct rb_node rb;
+  		unsigned long rb_subtree_last;
+  	} shared;
+
+  	/*
+  	 * A file's MAP_PRIVATE vma can be in both i_mmap tree and anon_vma
+  	 * list, after a COW of one of the file pages.	A MAP_SHARED vma
+  	 * can only be in the i_mmap tree.  An anonymous MAP_PRIVATE, stack
+  	 * or brk vma (with NULL file) can only be in an anon_vma list.
+  	 */
+  	struct list_head anon_vma_chain; /* Serialized by mmap_sem & page_table_lock */
+  	struct anon_vma *anon_vma;	/* Serialized by page_table_lock */ // anon_vma_chain、anon_vma 用于管理RMAP反向映射
+
+  	/* Function pointers to deal with this struct. */
+  	const struct vm_operations_struct *vm_ops; /* 指向许多方法的集合，这些方法用于在VMA中执行各种操作，通常用于文件映射 */
+
+  	/* Information about our backing store: */
+  	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE units 指定文件映射的偏移量，这个变量的单位不是Byte，而是页面的大小(PAGE_SIZE)。对于匿名页面来说，它的值可以是0或者 vm_addr/PAGE_SIZE */
+  	struct file * vm_file;		/* File we map to (can be NULL). 指向file的实例，描述一个被映射的文件。*/
+  	void * vm_private_data;		/* was vm_pte (shared mem) */
+
+  	atomic_long_t swap_readahead_info;
+  #ifndef CONFIG_MMU
+  	struct vm_region *vm_region;	/* NOMMU mapping region */
+  #endif
+  #ifdef CONFIG_NUMA
+  	struct mempolicy *vm_policy;	/* NUMA policy for the VMA */
+  #endif
+  	struct vm_userfaultfd_ctx vm_userfaultfd_ctx;
+  } __randomize_layout;
+
+  ```
+
+- `struct mm_struct` 数据结构是描述进程内存管理的核心数据结构，该数据结构也提供了管理 `VMA` 所需要的信息，这些信息概况如下：`linux-4.14.130/include/linux/mm_types.h`
+
+  ```c
+  struct mm_struct {
+  	struct vm_area_struct *mmap;		/* list of VMAs */
+  	struct rb_root mm_rb;
+      ...
+  }
+
+  ```
+
+  每个 `VMA` 都要连接到 `mm_struct` 中的链表和红黑树中，以方便查找：
+
+  1.  `mmap` 形成一个单链表，进程中所有的 `VMA` 都链接到这个链表中，链表头是 `mm_struct->mmap`。
+  2.  `mm_rb` 是红黑树的根节点，每个进程有一颗 `VMA` 的红黑树。
+
+  `VMA`按照起始地址以递增的方式插入 `mm_struct->mma` 链表中。当进程拥有大量的 `VMA` 时，扫描链表和查找特定的 `VMA` 是非常低效的操作，例如在云计算的机器中，所以内核中通常要靠红黑树来协助，以便提高查找速度。
+
+
+
+## 14.1 查找`VMA`
+
+- 通过虚拟地址`addr`来查找`VMA`是内核中常用的操作，内核提供一个`API` 函数来实现这个查找操作，`find_vma()`函数根据给定地址`addr` 查找满足如下条件之一的`VMA`，如下图所示：                                            ![1572412971964](/home/haibin.xu/haibin/doc/picture/图14.1-find_vma()示意图.png)
+  1.   `addr`在`VMA`空间范围内，即`vma->start <= addr <= vma->end`。
+  2.   距离`addr`最近并且`VMA`的结束地址大于`addr`的一个`VMA`。
+
+- `find_vma()`函数实现如下：`linux-4.14.130/mm/mmap.c`
+
+  ```c
+  /* Look up the first VMA which satisfies  addr < vm_end,  NULL if none. */
+  struct vm_area_struct *find_vma(struct mm_struct *mm, unsigned long addr)
+  {
+  	struct rb_node *rb_node;
+  	struct vm_area_struct *vma;
+
+  	/* Check the cache first. */
+  	vma = vmacache_find(mm, addr);
+  	if (likely(vma))
+  		return vma;
+
+  	rb_node = mm->mm_rb.rb_node;
+
+  	while (rb_node) {
+  		struct vm_area_struct *tmp;
+
+  		tmp = rb_entry(rb_node, struct vm_area_struct, vm_rb);
+
+  		if (tmp->vm_end > addr) {
+  			vma = tmp;
+  			if (tmp->vm_start <= addr)
+  				break;
+  			rb_node = rb_node->rb_left;
+  		} else
+  			rb_node = rb_node->rb_right;
+  	}
+
+  	if (vma)
+  		vmacache_update(addr, vma);
+  	return vma;
+  }
+
+  ```
+
+  - `vmacache_find()`是内核中一个查找`VMA`的优化方法，在`task_struct`结构中，有一个存放最近访问过的`VMA`的数组`vmacache[VMACACHE_SIZE]`，其中可以存放4个最近使用的`VMA`，充分利用了局部性原理。如果在`vmacache`中没有找到`VMA`，那么遍历这个用户进程的`mm_rb`红黑树，这个红黑树存放着该用户进程所有的`VMA`。
+
+  - `while`循环要找一块满足上述要求的`VMA`。
+
+- `find_vma_intersection()`函数是另外一个`API`接口，用于查找`start_addr、end_addr`和现存的`VMA`有重叠的一个`VMA`，它基于`find_vma()`函数来实现。函数路径：`linux-4.14.130/include/linux/mm.h`，实现如下：
+
+  ```c
+  /* Look up the first VMA which intersects the interval start_addr..end_addr-1,
+     NULL if none.  Assume start_addr < end_addr. */
+  static inline struct vm_area_struct * find_vma_intersection(struct mm_struct * mm, unsigned long start_addr, unsigned long end_addr)
+  {
+  	struct vm_area_struct * vma = find_vma(mm,start_addr);
+
+  	if (vma && end_addr <= vma->vm_start)
+  		vma = NULL;
+  	return vma;
+  }
+
+  ```
+
+- `find_vma_prev()`函数的逻辑和`find_vma()`函数一样，但是返回`VMA`的前继成员`vma->vm_prev`，函数路径：`linux-4.14.130/mm/mmap.c`，实现如下：
+
+  ```c
+  /*
+   * Same as find_vma, but also return a pointer to the previous VMA in *pprev.
+   */
+  struct vm_area_struct *
+  find_vma_prev(struct mm_struct *mm, unsigned long addr,
+  			struct vm_area_struct **pprev)
+  {
+  	struct vm_area_struct *vma;
+
+  	vma = find_vma(mm, addr);
+  	if (vma) {
+  		*pprev = vma->vm_prev;
+  	} else {
+  		struct rb_node *rb_node = mm->mm_rb.rb_node;
+  		*pprev = NULL;
+  		while (rb_node) {
+  			*pprev = rb_entry(rb_node, struct vm_area_struct, vm_rb);
+  			rb_node = rb_node->rb_right;
+  		}
+  	}
+  	return vma;
+  }
+
+  ```
+
+
+
+## 14.2 插入`VMA`
+
+- `insert_vm_start()`是内核提供的插入`VMA`的核心`API`函数，函数路径：`linux-4.14.130/mm/mmap.c`，实现如下：
+
+  ```c
+  /* Insert vm structure into process list sorted by address
+   * and into the inode's i_mmap tree.  If vm_file is non-NULL
+   * then i_mmap_rwsem is taken here.
+   */
+  int insert_vm_struct(struct mm_struct *mm, struct vm_area_struct *vma)
+  {
+  	struct vm_area_struct *prev;
+  	struct rb_node **rb_link, *rb_parent;
+
+  	if (find_vma_links(mm, vma->vm_start, vma->vm_end,
+  			   &prev, &rb_link, &rb_parent))
+  		return -ENOMEM;
+  	if ((vma->vm_flags & VM_ACCOUNT) &&
+  	     security_vm_enough_memory_mm(mm, vma_pages(vma)))
+  		return -ENOMEM;
+
+  	/*
+  	 * The vm_pgoff of a purely anonymous vma should be irrelevant
+  	 * until its first write fault, when page's anon_vma and index
+  	 * are set.  But now set the vm_pgoff it will almost certainly
+  	 * end up with (unless mremap moves it elsewhere before that
+  	 * first wfault), so /proc/pid/maps tells a consistent story.
+  	 *
+  	 * By setting it to reflect the virtual start address of the
+  	 * vma, merges and splits can happen in a seamless way, just
+  	 * using the existing file pgoff checks and manipulations.
+  	 * Similarly in do_mmap_pgoff and in do_brk.
+  	 */
+  	if (vma_is_anonymous(vma)) {
+  		BUG_ON(vma->anon_vma);
+  		vma->vm_pgoff = vma->vm_start >> PAGE_SHIFT;
+  	}
+
+  	vma_link(mm, vma, prev, rb_link, rb_parent);
+  	return 0;
+  }
+
+  ```

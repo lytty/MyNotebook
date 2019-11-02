@@ -1,4 +1,4 @@
-# Linux内核分析(七)——页表的映射过程
+# Linux内核内存管理(七)——页表的映射过程
 
 ## 1. ARM32 页表映射
 
@@ -24,7 +24,7 @@
 
   ```c
   /* linux-4.14/arch/arm/include/asm/pgtable-2level.h */
-  
+
   81  /*
   82   * PMD_SHIFT determines the size of the area a second-level page table can map
   83   * PGDIR_SHIFT determines what a third-level page table entry can map
@@ -46,7 +46,7 @@
 
     ```c
     /* linux-4.14/arch/arm/include/asm/mach/map.h */
-    
+
     17  struct map_desc {
     18  	unsigned long virtual; // 虚拟地址的起始地址
     19  	unsigned long pfn; // 物理地址的起始地址的页帧号
@@ -56,7 +56,7 @@
     ```
 
     1. 内存区间的属性通过一个全局的mem_type结构体数组来描述，struct mem_type 定义如下：
-    
+
     ```c
     /* linux-4.14/arch/arm/mm/mm.h */
     42  struct mem_type {
@@ -67,9 +67,9 @@
     47  	unsigned int domain; //用于ARM中定义不同的域
     48  };
     ```
-    
+
     全局 mem_type[] 数组描述所有的内存区间类型，其定义如下：
-    
+
     ```c
     /* linux-4.14/arch/arm/mm/mmu.c */
     248  static struct mem_type mem_types[] __ro_after_init = {
@@ -103,20 +103,20 @@
     ...
     355  };
     ```
-    
-    
-    
+
+
+
     2. ARM中允许使用16个不同的域，但在ARM Linux中只定义和使用3个。
-    
+
     ```c
     /* linux-4.14/arch/arm/include/asm/domain.h */
     41  #define DOMAIN_KERNEL	2 // 用于系统空间
     42  #define DOMAIN_USER	1 // 用于用户空间
     43  #define DOMAIN_IO	0 // 用于I/O地址域，实际上也属于系统空间
     ```
-    
+
     3. `prot_pte` 定义如下：
-    
+
     ```c
     /* linux-4.14/arch/arm/include/asm/pgtable-2level.h */
     120  #define L_PTE_VALID		(_AT(pteval_t, 1) << 0)		/* Valid */
@@ -128,15 +128,15 @@
     126  #define L_PTE_XN		(_AT(pteval_t, 1) << 9)
     127  #define L_PTE_SHARED		(_AT(pteval_t, 1) << 10)	/* shared(v6), coherent(xsc3) */
     128  #define L_PTE_NONE		(_AT(pteval_t, 1) << 11)
-    
+
     /* linux-4.14/arch/arm/mm/mmu.c */
     244  #define PROT_PTE_DEVICE		L_PTE_PRESENT|L_PTE_YOUNG|L_PTE_DIRTY|L_PTE_XN
     245  #define PROT_PTE_S2_DEVICE	PROT_PTE_DEVICE
     246  #define PROT_SECT_DEVICE	PMD_TYPE_SECT|PMD_SECT_AP_WRITE
     ```
-    
+
     4. `prot_l1`定义如下：
-    
+
     ```c
     /* linux-4.0/arch/arm/include/asm/pgtable-2level-hwdef.h */
     19  #define PMD_TYPE_MASK		(_AT(pmdval_t, 3) << 0)
@@ -148,7 +148,7 @@
     25  #define PMD_DOMAIN(x)		(_AT(pmdval_t, (x)) << 5)
     26  #define PMD_PROTECTION		(_AT(pmdval_t, 1) << 9)		/* v5 */
     ```
-    
+
     以上便是整个`map_desc`数据结构，其完整地描述了一个内存区间。
 
 - create_mapping
@@ -158,9 +158,9 @@
   2. create_mapping()函数调用流程：
 
      ![1562482144875](../picture/create_mapping函数调用流程.png)
-  
+
      各函数定义及解析如下：
-  
+
      ```c
      /* linux-4.14/arch/arm/mm/mmu.c */
      961  static void __init create_mapping(struct map_desc *md)
@@ -183,7 +183,7 @@
           	/* 调用__create_mapping，init_mm为全局变量，用于后续的查找PGD，early_alloc 是一个用于后续内存分配（当pte表项内容为0时，即该虚拟地址没有映射物理地址，需要分配物理内存）的指针函数*/
      976  	__create_mapping(&init_mm, md, early_alloc, false);
      977  }
-     
+
      911  static void __init __create_mapping(struct mm_struct *mm, struct map_desc *md,
      912  				    void *(*alloc)(unsigned long sz),
      913  				    bool ng)
@@ -229,7 +229,7 @@
      950  		addr = next;
      951  	} while (pgd++, addr != end);
      952  }
-     
+
      834  static void __init alloc_init_pud(pgd_t *pgd, unsigned long addr,
      835  				  unsigned long end, phys_addr_t phys,
      836  				  const struct mem_type *type,
@@ -247,7 +247,7 @@
      845  		phys += next - addr;
      846  	} while (pud++, addr = next, addr != end);
      847  }
-     
+
      802  static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
      803  				      unsigned long end, phys_addr_t phys,
      804  				      const struct mem_type *type,
@@ -281,7 +281,7 @@
      830  
      831  	} while (pmd++, addr = next, addr != end);
      832  }
-     
+
      761  static void __init alloc_init_pte(pmd_t *pmd, unsigned long addr,
      762  				  unsigned long end, unsigned long pfn,
      763  				  const struct mem_type *type,
@@ -297,7 +297,7 @@
      771  		pfn++;
      772  	} while (pte++, addr += PAGE_SIZE, addr != end);
      773  }
-     
+
      743  static pte_t * __init arm_pte_alloc(pmd_t *pmd, unsigned long addr,
      744  				unsigned long prot,
      745  				void *(*alloc)(unsigned long sz))
@@ -314,9 +314,9 @@
      752  	return pte_offset_kernel(pmd, addr);
      753  }
      ```
-     
+
      第942行，通过pgd_offset()函数获取所属页面目录项PGD。内核的页表存放在swapper_pg_dir地址中，可以通过 init_mm 数据结构来获取，init_mm 定义如下：
-     
+
      ```c
      /* linux-4.14/mm/init-mm.c */
      18  struct mm_struct init_mm = {
@@ -331,9 +331,9 @@
      27  	INIT_MM_CONTEXT(init_mm)
      28  };
      ```
-     
+
      内核页表的基地址定义如下：
-     
+
      ```c
      /* linux-4.14/arch/arm/kernel/head.S */
      37  #define KERNEL_RAM_VADDR	(PAGE_OFFSET + TEXT_OFFSET)
@@ -352,24 +352,24 @@
      50  
      51  	.globl	swapper_pg_dir
      52  	.equ	swapper_pg_dir, KERNEL_RAM_VADDR - PG_DIR_SIZE
-     
+
      /* linux-4.14/arch/arm/Makefile */
      143 textofs-y	:= 0x00008000
      250 TEXT_OFFSET := $(textofs-y)
      ```
-     
+
      pgd_offset()宏可以从 init_mm 数据结构所指定的页面目录中找到地址addr所属的页面目录项指针 pgd。 首先 通过 init_mm 结构体得到页表的基地址，然后通过 addr 右移 PGDIR_SHIFT 得到 pgd 的索引值，最后在一级页表中找到相应的页表项 pgd 指针。PGD的定义如下：
-     
+
      ```c
      typedef struct { pmdval_t pgd[2]; } pgd_t;
      #define pgd_index(addr)		((addr) >> PGDIR_SHIFT)
      #define pgd_offset(mm, addr)	((mm)->pgd + pgd_index(addr))
      ```
-     
+
      第748行，因为Linux内核默认的PGD是从21位开始的，也就是 bit[31:21]，一共2048个一级页表项。而ARM32硬件结构中，PGD是从20位开始，页表数目是4096，比Linux内核的要多一倍。
-     
+
      第749行 __pmd_populate()函数实现如下：
-     
+
      ```c
      /* linux-4.14/arch/arm/include/asm/pgalloc.h */
      131  static inline void __pmd_populate(pmd_t *pmdp, phys_addr_t pte,
@@ -385,37 +385,37 @@
      139  	flush_pmd_entry(pmdp);
      140  }
      ```
-     
+
      由pgd定义可知，pgd其实是pmdval_t pgd[2]，长度是两倍，也就是pgd包括两份相邻的PTE页表，所以pgd_offset在查找pgd表项时，是按照 pgd[2] 长度来进行计算的，因此查找相应的 pgd 表项时，其中 pgd[0] 指向第一份 PTE 页表，pgd[1] 指向第二份 PTE 页表。
-     
+
      后续第3部分，回答“ARM32架构中一级页表PGD的偏移量 PGDIR_SHIFT设置为21”，以及“PGD 页表项为什么是两倍长度”的问题。
-     
-     
-  
+
+
+
   3. ARM硬件页表映射过程如下图：                                  ![1562496066677](../picture/arm硬件页表映射过程.png)
-  
+
      页表中每一项称为一个entry（也就是我们之前所说的表项），entry存放的是物理地址值，PGD entry值指向2级页表（PTE页表），PTE entry值指向物理页。
-  
+
      由于以下两个原因，linux代码对上图的映射过程做了一些调整：
-  
+
      > 1. PTE entry中的一些低bit位被硬件使用了，没有linux需要的“accessed”、“dirty”等标志位。参考内核代码注释： Hardware-wise, we have a two level page table structure, where the first level has 4096 entries, and the second level has 256 entries.  Each entry is one 32-bit word.  Most of the bits in the second level entry are used by hardware, and there aren't any "accessed" and "dirty" bits。
      >
      >    ![1562496586266](../picture/arm pte entry标记位.png)
      >
      > 2. linux 希望PTE页表本身也是一个页表大小。参考内核代码注释：However, Linux also expects one "PTE" table per page, and at least a "dirty" bit.，但本章1.2页面映射章节中的PTE页表只有256*4 Byte=1k大小。
-  
+
      所以，针对以上两个问题，linux做了一些处理，使内核中实现的页表能够满足硬件要求，最终的arm页表如下图：                                           ![1562502291076](../picture/linux页表与硬件页表.png)
-  
+
      如上表，解释如下：
-  
+
      > 1. 软件实现必须符合硬件要求，ARM要求4096个PGD entry，256个PTE entry。解决：PGD每个entry为8 bytes，定义为pmdval_t pgd[2]，故共2048*2=4096 PGD entry。ARM MMU用va的bit[31,20]（本章1.2页面映射章节）在PGD 4096项中找到对应的entry，每个entry指向一个hw页表（上图）。每一个hw页表有256个entry，ARM MMU用va的bit[19,12]在hw页表中找到对应的entry。所以从硬件角度看，linux实现的arm页表，完全符合硬件要求。
      > 2. Linux需要 "accessed" and "dirty"位。解决：从图（arm pte entry标记位.png)中可以看出，PTE entry的低位已经被硬件占用，所以只能再复制出一份页表（称为linux页表或linux pt），上图的hw pt 0对应Linux pt 0，linux页表的低bit位被linux系统用来提供需要的 "accessed" and "dirty"位。hw pt由MMU使用，linux pt由操作系统使用。
      >
      > 3. Linux期望PTE页表占用1个page。解决：ARM的hw pt为256\*4 bytes=1k，不满一个page大小。内核代码在实现上采用了一个小技巧，让一个PGD entry映射2个连续的hw pt，同时将对应的2个linux pt也组织在一起，共1k*4=4k。
-  
+
      因为linux代码让PGD一次映射2个hw pt，所以软件需要做一些处理来实现这个目的。软件定义PGD表项为pmdval_t pgd[2]，pgd[i]指向一个hw pt，所以PGD表项一共有4096/2=2048项，也就是说需要用bit[31,21]来寻址这2048项，所以pgtable-2level.h中定义了：#define PGDIR_SHIFT 21 (注意，本章1.2页面映射章节图中PGD偏移20bit，那是给硬件MMU用的，跟我们这里的软件偏移没有关系)。
-  
-     
+
+
 
 ## 2. ARM64 页表映射
 

@@ -1,4 +1,4 @@
-# Linux内核分析(五)——页表
+# Linux内核内存管理(五)——页表
 
 ## 1. 统一的页表框架
 
@@ -19,7 +19,7 @@
 
   ```c
   /* linux-4.14/include/asm-generic/pgtable-nopmd.h */
-  
+
   18  typedef struct { pud_t pud; } pmd_t;
   ...
   44  static inline pmd_t * pmd_offset(pud_t * pud, unsigned long address)
@@ -30,11 +30,11 @@
 
   ​        同样，如果不使用页上层目录，那么内核在头文件“include/asm-generic/pgtable-nopud.h”中模拟页上层目录。如果不使用页四级目录，那么内核在头文件“include/asm-generic/pgtable-nop4d.h”中模拟页四级目录。
 
-  
+
 
 ## 2. 五级页表结构
 
-![](../picture/五级页表结构.png) 
+![](../picture/五级页表结构.png)
 
 - 每个进程有独立的页表，进程的mm_struct实例的成员pgd指向页全局目录，前面四级页表的表项存放下一级页表的起始地址，直接页表的表项存放页帧号（Page Frame Number，PFN）。
 
@@ -63,7 +63,7 @@
   > 4. P4D_SHIFT：页四级目录索引的偏移；
   > 5. PGDIR_SHIFT：页全局目录索引的偏移
 
-  
+
 
 - 内核定义了各级页表表项描述的地址空间的大小：
 
@@ -73,7 +73,7 @@
   > 4. PMD_SIZE：页中间目录表项映射的地址空间的大小；
   > 5. PAGE_SIZE：直接页表项映射的地址空间的大小，也是页长度；
 
-  
+
 
 - 内核定义了各级页表能存放的指针数量，即表项数量：
 
@@ -83,7 +83,7 @@
   > 4. PTRS_PER_PMD：页中间目录的表项数量；
   > 5. PTRS_PER_PTE：直接页表的表项数量；
 
-  
+
 
 - 内核定义了各级页表占用的页的阶数：
 
@@ -93,7 +93,7 @@
   > 4. PMD_ORDER：页中间目录占用的页的阶数；
   > 5. PTE_ORDER：直接页表占用的页的阶数；
 
-  
+
 
 - 内核定义了各级页表表项的的数据结构：
 
@@ -105,7 +105,7 @@
 
   这些数据结构通常是只包含一个无符号长整型的结构体，例如页全局目录表项的数据结构定义如下：`typedef unsigned long pgd_t;`
 
-  
+
 
 - 以页全局目录为例，内核定义了以下宏和内联函数：
 
@@ -131,7 +131,7 @@
 
   ​		各种处理器架构也可以定义私有的标志位。
 
-  
+
 
 ## 4. 页帧号
 
@@ -216,7 +216,7 @@
 
   ```c
   [linux-4.14/arch/arm/mm/mmu.c]
-  
+
   1246  static inline void prepare_page_table(void)
   1247  {
   1248  	unsigned long addr;
@@ -257,16 +257,16 @@
   1276  	     addr < VMALLOC_START; addr += PMD_SIZE)
   1277  		pmd_clear(pmd_off_k(addr));
   1278  }
-  
-  
+
+
   [linux-4.14/arch/arm/mm/mm.h]
   37  static inline pmd_t *pmd_off_k(unsigned long virt)
   38  {
       	/* 通过给定的虚拟地址，获取pmd页表目录页表项 */
   39  	return pmd_offset(pud_offset(pgd_offset_k(virt), virt), virt);
   40  }
-  
-  
+
+
   [linux-4.14/arch/arm/include/asm/pgtable-2level.h]
   205  #define pmd_clear(pmdp)			\
   206  	do {				\
@@ -275,7 +275,7 @@
   			/* clean_pmd_entry()函数 刷新页表对应的TLB */
   209  		clean_pmd_entry(pmdp);	\
   210  	} while (0)
-  
+
   [linux-4.14/arch/arm/include/asm/tlbflush.h]
   /* 刷新页表缓存，此处不作细讲 */
   591  static inline void clean_pmd_entry(void *pmd)
@@ -285,10 +285,10 @@
   595  	tlb_op(TLB_DCLEAN, "c7, c10, 1	@ flush_pmd", pmd);
   596  	tlb_l2_op(TLB_L2CLEAN_FR, "c15, c9, 1  @ L2 flush_pmd", pmd);
   597  }
-  
+
   ```
-  
-  
+
+
 
 ## 7. 内核页表创建
 
@@ -313,13 +313,13 @@
 86  #define __round_mask(x, y) ((__typeof__(x))((y)-1))
 87  #define round_up(x, y) ((((x)-1) | __round_mask(x, y))+1)
 88  #define round_down(x, y) ((x) & ~__round_mask(x, y))
- 
+
 [linux-4.14/include/linux/memblock.h]    
 386  #define for_each_memblock(memblock_type, region)					\
 387  	for (region = memblock.memblock_type.regions;					\
 388  	     region < (memblock.memblock_type.regions + memblock.memblock_type.cnt);	\
 389  	     region++)
-    
+
 [linux-4.14/arch/arm/mm/mmu.c]
 1429  static void __init map_lowmem(void)
 1430  {

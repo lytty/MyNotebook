@@ -1,4 +1,4 @@
-# Linux内核分析(十一)——块分配器
+# Linux内核内存管理(十一)——块分配器
 
 ## 11.1 概述
 
@@ -59,7 +59,7 @@
   size: 需要的内存长度；
   flags: 传给页分配器的分配标志位，当缓冲区没有空闲对象，向页分配器请求分配页的时候使用这个分配标志位。
   页分配器找到一个合适的通用内缓冲区对象的长度刚好大于或等于请求的内存长度，然后从这个内存缓冲区对象。如果分配成功，返回对象的地址，否则返回空指针。
-  
+
   ```
 
   > 重新分配内存
@@ -70,7 +70,7 @@
   new_size: 新的长度。
   flags: 传给页分配器的分配标志位。
   根据新的长度为对象重新分配内存，如果分配成功，返回新的地址，否则返回空指针。
-  
+
   ```
 
   > 释放内存
@@ -78,7 +78,7 @@
   ```c
   void kfree(const void *objp);
   objp: kmalloc()返回的对象的地址。
-  
+
   ```
 
 ### 11.2.2 专用缓冲区
@@ -97,7 +97,7 @@
   flags: `slab`标志位；
   ctor: 对象的构造函数；
   如果创建成功，返回缓冲区的地址，否则返回空指针。
-  
+
   ```
 
   > 如果要在缓冲区中申请一个对象的控件，则需调用内核函数`kmem_cache_alloc`，即从指定的缓冲区分配对象
@@ -107,7 +107,7 @@
   cachep: 从指定的缓冲区分配；
   flags: 传给页分配器的分配标志位，当内缓冲区有空闲对象，向页分配器请求分配页的时候使用这个分配标志位。
   如果分配成功，返回对象的地址，否则返回空指针。
-  
+
   ```
 
   > 一个对象在使用之后，还要调用内核函数kmem_cache_free()将其占有的空间归还缓冲区并由缓冲区来管理。注意，是归还缓冲区，使已经被释放的对象空间成为一个空闲对象空间，而不是归还内存。释放对象
@@ -116,7 +116,7 @@
   void kmem_cache_free(struct kmem_cache *cachep, void *objp)；
   cachep： 对象所属的缓冲区；
   objp： 对象的地址；
-  
+
   ```
 
   > 当认为某一个缓冲区确实不需要使用了，则需调用内核函数kmem_cache_distory()把缓冲区的控件归还内存。但一般不需要这样做，因为内核的守护程序kswapd会定时对slab中的空闲对象进行必要的回收工作。销毁缓冲区
@@ -124,7 +124,7 @@
   ```c
   void kmem_cache_destroy(struct kmem_cache *s)；
   s： 缓冲区。
-  
+
   ```
 
 
@@ -163,7 +163,7 @@
      32  
      33  	size_t colour;			/* cache colouring range 一个slab中有几个不同的cache line*/
      34  	unsigned int colour_off;	/* colour offset 一个cache colour的长度，和L1 cache line大小相同*/
-     35  	struct kmem_cache *freelist_cache; 
+     35  	struct kmem_cache *freelist_cache;
      36  	unsigned int freelist_size; // 每个对象要占用1Byte来存放freelist
      37  
      38  	/* constructor func */
@@ -218,7 +218,7 @@
      87  
      88  	struct kmem_cache_node *node[MAX_NUMNODES]; // slab 节点，在NUMA系统中每个节点有一个struct kmem_cache_node数据结构，而在非NUMA系统中，只有一个节点。
      89  };
-     
+
      [linux-4.14/mm/slab.c]
      184  struct array_cache {
   	 185  	unsigned int avail; /* 对象缓存池中可用的对象数目 */
@@ -231,14 +231,14 @@
      192  			 * the entries.
      193  			 */
      194  };
-     
+
      ```
-  
+
   3. 每个内存节点对应一个`kmem_cache_node`实例。该实例包含3个`slab`链表：链表`slabs_partial`把部分对象空闲的`slab`链接起来，链表`slabs_full`把没有空闲对象的`slab`链接起来，链表`slabs_free`把所有对象空闲的`slab`链接起来。成员`total_slabs`是`slab`数量。
-  
+
      ```c
      [linux-4.14/mm/slab.h]
-     
+
      453  struct kmem_cache_node {
      454  	spinlock_t list_lock;
      455  
@@ -268,16 +268,16 @@
      479  #endif
      480  
      481  };
-     
+
      ```
-  
+
      每个`slab`由一个或多个连续的物理页组成，页的阶数是`kmem_cache.gfporder`，如果阶数大于0，组成一个复合页。`slab`被划分为多个对象，大多数情况下，`slab`长度不是对象长度的整数倍，`slab`有剩余部分，可以用来给`slab`着色：“把`slab`的第一个对象从`slab`的起始位置偏移一个数值，偏移值是处理器的一级缓存行长度的整数倍，不同`slab`的偏移值不同，使不同`slab`的对象映射到处理器不同的缓存行”，所以我们看到在`slab`的前面有一个着色部分。
-  
+
      page结构体的相关成员如下(无关的成员已省略)：
-  
+
      ```c
      /* linux-4.14/include/linux/mm_types.h */
-     
+
      42  struct page {
      43  	/* First double word block */
      44  	unsigned long flags;		/* `flags`设置标志位`PG_slab`，表示页属于`slab`分配器 */
@@ -323,22 +323,22 @@
      189  	};
      		...
      213  }
-     
+
      ```
-     
+
      `kfree`函数怎么知道对象属于哪个通用的缓冲区？ 分为以下5步：
-     
+
      * 根据对象的虚拟地址得到物理地址，因为块分配器使用的虚拟地址属于直接映射的内核虚拟地址空间，虚拟地址=物理地址+常量，把虚拟地址转换成物理地址很方便；
      * 根据物理地址得到物理页号；
      * 根据物理页号得到page实例；
      * 如果是复合页，需要得到首页的page实例；
      * 根据page实例的成员`slab_cache`得到`kmem_cache`实例。
-     
+
   4. `kmem_cache`实例的成员`cpu_cache`指向`array_cache`实例，每个处理器对应一个`array_cache`实例，称为数组缓存，用来缓存刚刚释放的对象，分配时首先从当前处理器的数组缓存分配，避免每次都要从`slab`分配，减少链表操作和锁操作，提高分配速度。`slab`描述符给每个CPU都提供了一个对象缓存池（`array_cache`），其数据结构定义如下：
-  
+
      ```c
   [linux-4.14/mm/slab.c]
-     
+
      184  struct array_cache {
      185  	unsigned int avail; //对象缓存池中可用的对象数目，即数组`entry`存放的对象数量
      186  	unsigned int limit; //数组缓存大小
@@ -346,21 +346,21 @@
   	188  	unsigned int touched; //从缓存池移除一个对象时，将touched置1，而收缩缓存时，将touched置0
      189  	void *entry[]; //保存对象的实体，存放对象的地址
   194  };
-     
+
      ```
-  
-     
+
+
      每个对象的内存布局如下图：           ![1567503060156](../picture/对象的内存布局.png)
-  
+
      * 红色区域1：长度是8字节，写入一个魔幻数，如果值被修改，说明对象被改写；
      * 真实对象：长度是`kmem_cache.obj_size`，偏移是`kmem_cache.obj_offset`；
      * 填充：用来对齐的填充字节；
      * 红色区域2：长度是8字节，写入一个魔幻数，如果值被修改，说明对象被改写；
      * 最后一个使用者：在64位系统上长度是8字节，存放最后一个调用者的地址，用来确定对象被谁改写。
      * 对象的长度是`kmem_cache.size`。红色区域1、2和最后一个使用者是可选的，当想要发现内存分配和使用的错误，打开调试配置宏`CONFIG_DEBUG_SLAB`的时候，对象才包括这3个成员。
-  
+
   - `kmem_cache.obj_size`是调用者指定的对象长度，`kmem_cache.size`是对象的实际占用的内存长度，通常比前者大，原因是为了提高访问对象的速度，需要把对象的地址和长度都对齐到某个值，对齐值的函数实现如下：
-  
+
     ```c
     [linux-4.14/mm/slab_common.c]
     344  unsigned long calculate_alignment(unsigned long flags,
@@ -385,9 +385,9 @@
     363  
     364  	return ALIGN(align, sizeof(void *));
     365  }
-    
+
     ```
-  
+
     1. 如果创建缓冲区时指定了标志位`SLAB_HWCACHE_ALIGN`，要求和处理器的一级缓存行的长度对齐，计算对齐值的方法如下：
        - 如果对象的长度大于一级缓存行的长度的一半，对齐值取一级缓存行的长度；
        - 如果对象的长度小于一级缓存行的长度的一半，对齐值取（一级缓存行的长度/2^n），把2^n个对象放在一个一级缓存行里面，需要为n找到一个合适的值。
@@ -395,8 +395,8 @@
        - 举例说明：假设指定的对齐值是4字节，一级缓存行的长度是32字节，对象的长度是12字节，那么对齐值是16字节，对象占用的内存长度是16字节，把两个对象放在一个一级缓存行里面。
     2. 如果对齐值小于`ARCH_SLAB_MINALIGN`，那么取`ARCH_SLAB_MINALIGN`，`ARCH_SLAB_MINALIGN`是各种处理器架构定义的最小对齐值，默认值是8.
     3. 把对齐值向上调整为指针长度的整数倍。
-  
-  
+
+
 
 ### 11.3.2 空闲对象链表
 
@@ -464,20 +464,20 @@
   		num = cache_estimate(gfporder, size, flags, &remainder);
   		if (!num) /* 如果对象数量为0，那么不合适 */
   			continue;
-  
+
   		/* Can't handle number of objects more than SLAB_OBJ_MAX_NUM 如果对象数量大于允许的最大slab对象数量SLAB_OBJ_MAX_NUM，那么不合适*/
-  		if (num > SLAB_OBJ_MAX_NUM) 
+  		if (num > SLAB_OBJ_MAX_NUM)
   			break;
   		/* 标志位CFLGS_OFF_SLAB表示空闲对象链表放在slab外面 */
   		if (flags & CFLGS_OFF_SLAB) {
   			struct kmem_cache *freelist_cache;
   			size_t freelist_size;
-  
+
   			freelist_size = num * sizeof(freelist_idx_t); /* freelist_idx_t是对象索引的数据类型, unsigned char or unsigned short */
   			freelist_cache = kmalloc_slab(freelist_size, 0u); /* 根据size获取对应的kmem_cache对象，这个对象（缓冲区）是为空闲链表创建的，可参考本章`11.3.2 空闲对象链表`小节内容 */
   			if (!freelist_cache)
   				continue;
-  
+
   			/*
   			 * Needed to avoid possible looping condition
   			 * in cache_grow_begin()
@@ -485,17 +485,17 @@
   			 */
   			if (OFF_SLAB(freelist_cache))
   				continue;
-  
+
   			/* check if off slab has enough benefit 如果空闲对象链表的长度大于对象长度的一半，那么不合适 */
   			if (freelist_cache->size > cachep->size / 2)
   				continue;
   		}
-  
+
   		/* Found something acceptable - save it away */
   		cachep->num = num;
   		cachep->gfporder = gfporder;
   		left_over = remainder;
-  
+
   		/*
   		 * A VFS-reclaimable slab tends to have most allocations
   		 * as GFP_NOFS and we really don't want to have to be allocating
@@ -504,7 +504,7 @@
   		 */
   		if (flags & SLAB_RECLAIM_ACCOUNT)
   			break;
-  
+
   		/*
   		 * Large number of objects is good, but very large slabs are
   		 * currently bad for the gfp()s.
@@ -512,7 +512,7 @@
   		 */
   		if (gfporder >= slab_max_order)
   			break;
-  
+
   		/*
   		 * Acceptable internal fragmentation?
   		 × 如果剩余长度（left_over）小于或等于`slab`长度的`1/8`，那么选择这个阶数
@@ -522,13 +522,13 @@
   	}
   	return left_over;
   }
-  
+
   static unsigned int cache_estimate(unsigned long gfporder, size_t buffer_size,
   		unsigned long flags, size_t *left_over)
   {
   	unsigned int num;
   	size_t slab_size = PAGE_SIZE << gfporder;
-  
+
   	if (flags & (CFLGS_OBJFREELIST_SLAB | CFLGS_OFF_SLAB)) {
   		num = slab_size / buffer_size;
   		*left_over = slab_size % buffer_size;
@@ -537,7 +537,7 @@
   		*left_over = slab_size %
   			(buffer_size + sizeof(freelist_idx_t));
   	}
-  
+
   	return num;
   }
   [linux-4.14.130/mm/slab_common.c]
@@ -545,11 +545,11 @@
   struct kmem_cache *kmalloc_slab(size_t size, gfp_t flags)
   {
   	int index;
-  
+
   	if (size <= 192) {
   		if (!size)
   			return ZERO_SIZE_PTR;
-  
+
   		index = size_index[size_index_elem(size)];
   	} else {
   		if (unlikely(size > KMALLOC_MAX_CACHE_SIZE)) {
@@ -558,11 +558,11 @@
   		}
   		index = fls(size - 1);
   	}
-  
+
   #ifdef CONFIG_ZONE_DMA
   	if (unlikely((flags & GFP_DMA)))
   		return kmalloc_dma_caches[index];
-  
+
   #endif
   	return kmalloc_caches[index];
   }
@@ -580,7 +580,7 @@
 
 - `slab_max_order`：允许的最大`slab`阶数。如果内存容量大于32MB，那么默认值是1，否则默认值是0。可以通过内核参数`slab_max_order`指定。
 
-  
+
 
 ### 11.3.4 着色
 
@@ -710,7 +710,7 @@
 
    ```c
    [linux-4.14/include/linux/slub_def.h]
-   
+
    82  struct kmem_cache {
    83  	struct kmem_cache_cpu __percpu *cpu_slab; /*  */
    84  	/* Used for retriving partial slabs etc */
@@ -770,14 +770,14 @@
    138  
    139  	struct kmem_cache_node *node[MAX_NUMNODES];
    140  };
-   
+
    ```
 
 2. 每个内存节点对应一个`kmem_cache_node`实例：
 
    ```c
    [linux-4.14/mm/slab.h]
-   
+
    453  struct kmem_cache_node {
    454  	spinlock_t list_lock;
    		...
@@ -792,7 +792,7 @@
    479  #endif
    480  
    481  };
-   
+
    ```
 
 3. 每个`slab`由一个或多个连续的物理页组成，页的阶数是最优`slab`或最小`slab`的阶数，如果阶数大于0，组成一个复合页。
@@ -803,13 +803,13 @@
      1. 如果`page`结构体的成员`lru`的长度大于或等于`rcu_head`结构体的长度，那么重用成员`lru`；
      2. 如果`page`结构体的成员`lru`的长度小于`rcu_head`结构体的长度，那么必须在`slab`尾部为`rcu_head`结构体保留空间，保留长度是`rcu_head`结构体的长度。
 
-   
+
 
    - `page`结构体相关成员如下(无关成员已省略)：
 
      ```c
      /* linux-4.14/include/linux/mm_types.h */
-     
+
      42  struct page {
      43  	/* First double word block */
      44  	unsigned long flags;		/* `flags`设置标志位`PG_slab`，表示页属于`slub`分配器 */
@@ -859,7 +859,7 @@
      189  	};
                   ...
      213  }
-     
+
      ```
 
 4. `kmem_cache`实例的成员`cpu_slab`指向`kmem_cache_cpu`实例，每个处理器对应一个`kmem_cache_cpu`实例，称为每处理器`slab`缓存。
@@ -925,7 +925,7 @@
      	}
      	把最小对象数量min_objects减1，然后重试。
      }
-     
+
      ```
 
   3. 如果不能把多个对象放在一个`slab`中，那么尝试把一个对象放在一个`slab`中。先尝试最大阶数取控制参数`slub_max_order`：最小对象数量取1，剩余部分比例取1，调用函数`slab_order`计算阶数，如果阶数不超过`slub_max_order`，那么返回这个阶数。
@@ -936,16 +936,16 @@
 
   ```
   如果最小slab的对象数量已经超过每页最大对象数量（宏MAX_OBJS_PER_PAGE，值是32767），那么slab长度取（对象长度 × 每页最大对象数）向上对齐到2^n页的长度，然后取一半，slab阶数是（get_order(对象长度 × 每页最大对象数) - 1），函数get_order用来得到内存长度的分配阶。
-  
+
   最小阶数min_order从slab最小阶数slub_min_order和根据最小对象数量min_objects算出的slab阶数中取最大值。
-  
+
   从最小阶数min_order到最大阶数max_order尝试 {
   	slab长度 = 页长度左移阶数位
   	剩余长度 = （slab长度 - 保留长度）除以对象长度取余数
   	剩余部分比例 = 剩余长度 / slab长度
   	如果剩余部分比例不超过上限（1/fraction），那么取这个阶数。
   }
-  
+
   ```
 
 
@@ -994,7 +994,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
 - 调试选项如下所示：
   1.  F: 在分配和释放时执行昂贵的一致性检查（对应标志位`SLAB_CONSISTENCY_CHECKS`）
   2.  Z: 红色区域（对应标志位`SLAB_RED_ZONE`）
-  3.  P: 毒化对象（对应标志位`SLAB_POISON`） 
+  3.  P: 毒化对象（对应标志位`SLAB_POISON`）
   4.  U: 分配/释放用户跟踪（对应标志位`SLAB_STORE_USER`）
   5.  T: 跟踪分配和释放（对应标志位`SLAB_TRACE`），只在一个缓冲区上使用
   6.  A: 注入分配对象失败的错误（对应标志位`SLAB_FAILSLAB`，需要打开配置宏`CONFIG_FAILSLAB`）
@@ -1003,7 +1003,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
 
 - 如果没有指定调试选择（即`slub_debug=`），表示打开所有调试选项。
 
-  
+
 
 ## 11.5 `slob`分配器
 
@@ -1023,7 +1023,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
 
   ```c
   /* linux-4.14/include/linux/mm_types.h */
-  
+
   42  struct page {
   43  	/* First double word block */
   44  	unsigned long flags;		/* `flags`设置标志位`PG_slab`，表示页属于`slob`分配器；设置标志位`PG_slob_free`，表示`slab`在`slab`链表中 */
@@ -1056,23 +1056,23 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   170  	};
   		...
   213  }
-  
+
   ```
 
 - `slob`分配器的分配粒度是单元，也就是说，分配长度必须是单元的整数倍，单元是数据类型`slobidx_t`的长度，通常是2字节。数据类型`slobidx_t`的定义如下：
 
   ```c
   [linux-4.14/mm/slob.c]
-  
+
   85  #if PAGE_SIZE <= (32767 * 2)
   86  typedef s16 slobidx_t;
   87  #else
   88  typedef s32 slobidx_t;
   89  #endif
-  
+
   ```
 
-  
+
 
 ### 11.5.2 空闲对象链表
 
@@ -1128,9 +1128,9 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   437  	const char *cache_name;
   438  	int err;
   439     //获得online cpu 和mem的锁
-  440  	get_online_cpus(); 
+  440  	get_online_cpus();
   441  	get_online_mems();
-  442  	memcg_get_cache_ids(); 
+  442  	memcg_get_cache_ids();
   443  
   444  	mutex_lock(&slab_mutex);
   445  
@@ -1191,7 +1191,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   500  	}
   501  	return s;
   502  }
-  
+
   ```
 
 - `kmem_cache_create() -> __kmem_cache_alias()`                                ![1568269672835](../picture/图11.19-缓冲区合并.png)
@@ -1218,7 +1218,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   1905  	}
   1906  	return cachep;
   1907  }
-  
+
   [linux-4.14/mm/slab_common.c]
   293  struct kmem_cache *find_mergeable(size_t size, size_t align,
   294  		unsigned long flags, const char *name, void (*ctor)(void *))
@@ -1266,7 +1266,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   336  	}
   337  	return NULL;
   338  }
-  
+
   ```
 
 - `kmem_cache_create() -> create_cache()`                            ![1568269906767](../picture/图11.20-create_cache调用.png)
@@ -1314,7 +1314,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   404  	kmem_cache_free(kmem_cache, s);
   405  	goto out;
   406  }
-  
+
   ```
 
 - `kmem_cache_create() -> create_cache() -> __kmem_cache_create()`    ![1568270741405](../picture/图11.21-__kmem_cache_create调用.png)
@@ -1352,7 +1352,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   2031  	 */
   2032  	size = ALIGN(size, BYTES_PER_WORD); /* 检查size是否和系统的Word长度对齐 */
   2033    /* 如果定义了标志位SLAB_RED_ZONE，则size需要与REDZONE_ALIGN对齐 */
-  2034  	if (flags & SLAB_RED_ZONE) { 
+  2034  	if (flags & SLAB_RED_ZONE) {
   2035  		ralign = REDZONE_ALIGN;
   2036  		/* If redzoning, ensure that the second redzone is suitably
   2037  		 * aligned, by adjusting the object size accordingly. */
@@ -1369,14 +1369,14 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   2048  	/*
   2049  	 * 4) Store it.
   2050  	 */
-  2051  	cachep->align = ralign; 
+  2051  	cachep->align = ralign;
       	/* 计算缓冲区的颜色偏移，等于一级缓存行长度 */
-  2052  	cachep->colour_off = cache_line_size(); 
+  2052  	cachep->colour_off = cache_line_size();
   2053  	/* Offset must be a multiple of the alignment. 如果内缓冲区颜色偏移小于对齐值，那么取对齐值 */
   2054  	if (cachep->colour_off < cachep->align)
   2055  		cachep->colour_off = cachep->align;
   2056  	/* 枚举类型 slab_state 用来表示slab系统中的状态，例如DOWN、PARTIAL、PARTIAL_NODE、UP、FULL等，当slab机制完全初始化完成后状态变成FULL。slab_is_available()表示当slab状态在UP或者FULL时，分配标志位可以使用GFP_KERNEL，否则只能使用GFP_NOWAIT */
-  2057  	if (slab_is_available()) 
+  2057  	if (slab_is_available())
   2058  		gfp = GFP_KERNEL;
   2059  	else
   2060  		gfp = GFP_NOWAIT;
@@ -1488,7 +1488,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   2164  
   2165  	return 0;
 2166  }
-  
+
   ```
 
 ![1568271171195](/home/haibin.xu/haibin/doc/picture/图11.22-空闲对象链表位置确定.png)
@@ -1504,7 +1504,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   			size_t size, unsigned long flags)
   {
   	size_t left;
-  
+
   	cachep->num = 0; // 设置slab cache 对象数量为0
   	/* 如果指定了对象的构造函数，或者是指定了标志位SLAB_TYPESAFE_BY_RCU（表示使用RCU技术延迟释放slab），这种方案不合适 */
   	if (cachep->ctor || flags & SLAB_TYPESAFE_BY_RCU)
@@ -1517,9 +1517,9 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	/* cachep->num * sizeof(freelist_idx_t) 等于空闲对象链表的长度， 如果空闲对象链表的长度大于对象长度，那么这种方案不合适 */
   	if (cachep->num * sizeof(freelist_idx_t) > cachep->object_size)
   		return false;
-  
+
   	cachep->colour = left / cachep->colour_off;
-  
+
   	return true;
   }
   ```
@@ -1535,9 +1535,9 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   			size_t size, unsigned long flags)
   {
   	size_t left;
-  
+
   	cachep->num = 0;
-  
+
   	/*
   	 * Always use on-slab management when SLAB_NOLEAKTRACE
   	 * to avoid recursive calls into kmemleak.
@@ -1545,7 +1545,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	 */
   	if (flags & SLAB_NOLEAKTRACE)
   		return false;
-  
+
   	/*
   	 * Size is large, assume best to place the slab management obj
   	 * off-slab (should allow better packing of objs).
@@ -1554,7 +1554,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	left = calculate_slab_order(cachep, size, flags | CFLGS_OFF_SLAB);
   	if (!cachep->num)
   		return false;
-  
+
   	/*
   	 * If the slab has been placed off-slab, and we have enough space then
   	 * move it on-slab. This is at the expense of any extra colouring.
@@ -1562,9 +1562,9 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	 */
   	if (left >= cachep->num * sizeof(freelist_idx_t))
   		return false;
-  
+
   	cachep->colour = left / cachep->colour_off;
-  
+
   	return true;
   }
   ```
@@ -1580,18 +1580,18 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   			size_t size, unsigned long flags)
   {
   	size_t left;
-  
+
   	cachep->num = 0;
-  
+
   	left = calculate_slab_order(cachep, size, flags);
   	if (!cachep->num)
   		return false;
-  
+
   	cachep->colour = left / cachep->colour_off;
-  
+
   	return true;
   }
-  
+
   ```
 
 - `kmem_cache_create() -> create_cache() -> __kmem_cache_create() -> setup_cpu_cache()`
@@ -1604,11 +1604,11 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   {
   	if (slab_state >= FULL) /* 假入slab_state 为FULL，即slab机制已经初始化完成，内部直接调用enable_cpucache()函数*/
   		return enable_cpucache(cachep, gfp);
-  
+
   	cachep->cpu_cache = alloc_kmem_cache_cpus(cachep, 1, 1);
   	if (!cachep->cpu_cache)
   		return 1;
-  
+
   	if (slab_state == DOWN) {
   		/* Creation of first cache (kmem_cache). */
   		set_up_node(kmem_cache, CACHE_CACHE);
@@ -1617,7 +1617,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   		set_up_node(cachep, SIZE_NODE);
   	} else {
   		int node;
-  
+
   		for_each_online_node(node) {
   			cachep->node[node] = kmalloc_node(
   				sizeof(struct kmem_cache_node), gfp, node);
@@ -1625,11 +1625,11 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   			kmem_cache_node_init(cachep->node[node]);
   		}
   	}
-  
+
   	cachep->node[numa_mem_id()]->next_reap =
   			jiffies + REAPTIMEOUT_NODE +
   			((unsigned long)cachep) % REAPTIMEOUT_NODE;
-  
+
   	cpu_cache_get(cachep)->avail = 0;
   	cpu_cache_get(cachep)->limit = BOOT_CPUCACHE_ENTRIES;
   	cpu_cache_get(cachep)->batchcount = 1;
@@ -1638,25 +1638,25 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	cachep->limit = BOOT_CPUCACHE_ENTRIES;
   	return 0;
   }
-  
+
   static int enable_cpucache(struct kmem_cache *cachep, gfp_t gfp)
   {
   	int err;
   	int limit = 0;
   	int shared = 0;
   	int batchcount = 0;
-  
+
   	err = cache_random_seq_create(cachep, cachep->num, gfp);
   	if (err)
   		goto end;
-  
+
   	if (!is_root_cache(cachep)) {
   		struct kmem_cache *root = memcg_root_cache(cachep);
   		limit = root->limit;
   		shared = root->shared;
   		batchcount = root->batchcount;
   	}
-  
+
   	if (limit && shared && batchcount)
   		goto skip_setup;
   	/*
@@ -1679,7 +1679,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   		limit = 54;
   	else
   		limit = 120;
-  
+
   	/*
   	 * CPU bound tasks (e.g. network routing) can exhibit cpu bound
   	 * allocation behaviour: Most allocs on one cpu, most free operations
@@ -1693,7 +1693,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	shared = 0;
   	if (cachep->size <= PAGE_SIZE && num_possible_cpus() > 1)
   		shared = 8;
-  
+
   #if DEBUG
   	/*
   	 * With debugging enabled, large batchcount lead to excessively long
@@ -1711,7 +1711,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   		       cachep->name, -err);
   	return err;
   }
-  
+
   ```
 
 - `setup_cpu_cache() -> do_tune_cpucache()`，其定义如下：
@@ -1723,24 +1723,24 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   {
   	int ret;
   	struct kmem_cache *c;
-  	
+
   	ret = __do_tune_cpucache(cachep, limit, batchcount, shared, gfp);
-  
+
   	if (slab_state < FULL)
   		return ret;
-  
+
   	if ((ret < 0) || !is_root_cache(cachep))
   		return ret;
-  
+
   	lockdep_assert_held(&slab_mutex);
   	for_each_memcg_cache(c, cachep) {
   		/* return value determined by the root cache only */
   		__do_tune_cpucache(c, limit, batchcount, shared, gfp);
   	}
-  
+
   	return ret;
   }
-  
+
   static int __do_tune_cpucache(struct kmem_cache *cachep, int limit,
   				int batchcount, int shared, gfp_t gfp)
   {
@@ -1750,7 +1750,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	cpu_cache = alloc_kmem_cache_cpus(cachep, limit, batchcount);
   	if (!cpu_cache)
   		return -ENOMEM;
-  
+
   	prev = cachep->cpu_cache;
   	cachep->cpu_cache = cpu_cache; /* 刚分配的对象缓冲池cpu_cache被设置为slab描述符的本地对象缓冲池 */
   	/*
@@ -1759,21 +1759,21 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	 */
   	if (prev)
   		kick_all_cpus_sync();
-  
+
   	check_irq_on();
   	cachep->batchcount = batchcount;
   	cachep->limit = limit;
   	cachep->shared = shared;
-  
+
   	if (!prev)
   		goto setup_node;
-  
+
   	for_each_online_cpu(cpu) {
   		LIST_HEAD(list);
   		int node;
   		struct kmem_cache_node *n;
   		struct array_cache *ac = per_cpu_ptr(prev, cpu);
-  
+
   		node = cpu_to_mem(cpu);
   		n = get_node(cachep, node);
   		spin_lock_irq(&n->list_lock);
@@ -1782,47 +1782,47 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   		slabs_destroy(cachep, &list);
   	}
   	free_percpu(prev);
-  
+
   setup_node:
   	return setup_kmem_cache_nodes(cachep, gfp); /* 调用setup_kmem_cache_nodes()函数继续初始化slab缓冲区cachep->kmem_cache_node数据结构 */
   }
-  
+
   static struct array_cache __percpu *alloc_kmem_cache_cpus(
 		struct kmem_cache *cachep, int entries, int batchcount)
   {
   	int cpu;
   	size_t size;
   	struct array_cache __percpu *cpu_cache;
-  
+
   	size = sizeof(void *) * entries + sizeof(struct array_cache);/* 此处计算size时考虑到对象缓冲池的最大阈值limit，参数entries是指最大阈值limit */
   	cpu_cache = __alloc_percpu(size, sizeof(void *));
-  
+
   	if (!cpu_cache)
   		return NULL;
-  
+
   	for_each_possible_cpu(cpu) {
   		init_arraycache(per_cpu_ptr(cpu_cache, cpu), /* init_arraycache()函数设置对象缓冲池的limit和batchcount */
   				entries, batchcount);
   	}
-  
+
   	return cpu_cache;
   }
-  
+
   static int setup_kmem_cache_nodes(struct kmem_cache *cachep, gfp_t gfp)
   {
   	int ret;
   	int node;
   	struct kmem_cache_node *n;
-  
+
   	for_each_online_node(node) { /* for循环遍历系统中所有的NUMA节点，当然在UMA平台中只有一个内存节点 */
   		ret = setup_kmem_cache_node(cachep, node, gfp, true);
   		if (ret)
   			goto fail;
-  
+
   	}
-  
+
   	return 0;
-  
+
   fail:
   	if (!cachep->list.next) {
   		/* Cache is not active yet. Roll back what we did */
@@ -1840,7 +1840,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	}
   	return -ENOMEM;
   }
-  
+
   static int setup_kmem_cache_node(struct kmem_cache *cachep,
   				int node, gfp_t gfp, bool force_change)
   {
@@ -1850,24 +1850,24 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	struct array_cache *new_shared = NULL;
   	struct alien_cache **new_alien = NULL;
   	LIST_HEAD(list);
-  
+
   	if (use_alien_caches) {
   		new_alien = alloc_alien_cache(node, cachep->limit, gfp);
   		if (!new_alien)
   			goto fail;
   	}
-  
+
   	if (cachep->shared) { /* 在多核系统中 cachep->shared 会>0，这个在enable_cpucache()函数中已经初始化了*/
   		new_shared = alloc_arraycache(node,
   			cachep->shared * cachep->batchcount, 0xbaadf00d, gfp); /* 通过alloc_arraycache()来分配一个共享对象缓冲池new_shared，为多核CPU之间共享空闲缓存对象 */
   		if (!new_shared)
   			goto fail;
   	}
-  
+
   	ret = init_cache_node(cachep, node, gfp); // 配置node->free_limit
   	if (ret)
   		goto fail;
-  
+
   	n = get_node(cachep, node);
   	spin_lock_irq(&n->list_lock);
   	if (n->shared && force_change) {
@@ -1875,21 +1875,21 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   				n->shared->avail, node, &list);
   		n->shared->avail = 0;
   	}
-  
+
   	if (!n->shared || force_change) {
   		old_shared = n->shared;
   		n->shared = new_shared;
   		new_shared = NULL;
   	}
-  
+
   	if (!n->alien) {
   		n->alien = new_alien;
   		new_alien = NULL;
   	}
-  
+
   	spin_unlock_irq(&n->list_lock);
   	slabs_destroy(cachep, &list);
-  
+
   	/*
   	 * To protect lockless access to n->shared during irq disabled context.
   	 * If n->shared isn't NULL in irq disabled context, accessing to it is
@@ -1898,15 +1898,15 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	 */
   	if (old_shared && force_change)
   		synchronize_sched();
-  
+
   fail:
   	kfree(old_shared);
   	kfree(new_shared);
   	free_alien_cache(new_alien);
-  
+
   	return ret;
   }
-  
+
   ```
 
 ### 11.6.2 分配slab对象
@@ -1922,57 +1922,57 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	kasan_slab_alloc(cachep, ret, flags);
   	trace_kmem_cache_alloc(_RET_IP_, ret,
   			       cachep->object_size, cachep->size, flags);
-  
+
   	return ret;
   }
-  
+
   static __always_inline void *
   slab_alloc(struct kmem_cache *cachep, gfp_t flags, unsigned long caller)
   {
   	unsigned long save_flags;
   	void *objp;
-  
+
   	flags &= gfp_allowed_mask;
   	cachep = slab_pre_alloc_hook(cachep, flags); /* 这个函数和后面的slab_post_alloc_hook 配合使用 */
   	if (unlikely(!cachep))
   		return NULL;
-  
+
   	cache_alloc_debugcheck_before(cachep, flags);
   	local_irq_save(save_flags); /* 关闭本地cpu的中断 */
   	objp = __do_cache_alloc(cachep, flags); /* 在关闭本地中断的情况下，开始从名字为cachep的缓存中申请内存 */
   	local_irq_restore(save_flags);
   	objp = cache_alloc_debugcheck_after(cachep, flags, objp, caller);
   	prefetchw(objp);
-  
+
   	if (unlikely(flags & __GFP_ZERO) && objp)
   		memset(objp, 0, cachep->object_size);
-  
+
   	slab_post_alloc_hook(cachep, flags, 1, &objp);
   	return objp;
   }
-  
+
   static __always_inline void *
   __do_cache_alloc(struct kmem_cache *cachep, gfp_t flags)
   {
   	return ____cache_alloc(cachep, flags);
   }
-  
+
   static inline void *____cache_alloc(struct kmem_cache *cachep, gfp_t flags)
   {
   	void *objp;
   	struct array_cache *ac;
-  
+
   	check_irq_off();
-  
+
   	ac = cpu_cache_get(cachep); /* 获取slab描述符cachep中本地对象缓冲池ac， 即 cachep->cpu_cache*/
   	if (likely(ac->avail)) { /* 判断本地对象缓冲池中有没有空闲对象， ac->avail表示本地对象缓冲池中有空闲对象 */
   		ac->touched = 1;
   		objp = ac->entry[--ac->avail]; /* ac->entry 存放对象数组的地址 */
-  
+
   		STATS_INC_ALLOCHIT(cachep);
   		goto out;
   	}
-  
+
   	STATS_INC_ALLOCMISS(cachep);
   	objp = cache_alloc_refill(cachep, flags);
   	/*
@@ -1980,7 +1980,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	 * and kmemleak_erase() requires its correct value.
   	 */
   	ac = cpu_cache_get(cachep);
-  
+
   out:
   	/*
   	 * To avoid a false negative, if an object that is in one of the
@@ -1991,7 +1991,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   		kmemleak_erase(&ac->entry[ac->avail]);
   	return objp;
   }
-  
+
   ```
 
 - `kmem_cache_alloc() -> ____cache_alloc() -> cache_alloc_refill()`,从 `kmem_cache_create()`函数创建成功返回时，`ac->avail`应该为0，所以如果是第一次分配缓存对象时，因为`ac->avail`值为0，所以此时if内部代码不会被执行，而是跳过直接执行`cache_alloc_refill()`
@@ -2006,10 +2006,10 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	int node;
   	void *list = NULL;
   	struct page *page;
-  
+
   	check_irq_off();
   	node = numa_mem_id();
-  
+
   	ac = cpu_cache_get(cachep); /* 获取slab描述符cachep中本地对象缓冲池ac， 即 cachep->cpu_cache*/
   	batchcount = ac->batchcount;
   	if (!ac->touched && batchcount > BATCHREFILL_LIMIT) {
@@ -2021,51 +2021,51 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   		batchcount = BATCHREFILL_LIMIT;
   	}
   	n = get_node(cachep, node); /* 获取slab节点n */
-  
+
   	BUG_ON(ac->avail > 0 || !n);
   	shared = READ_ONCE(n->shared);
   	if (!n->free_objects && (!shared || !shared->avail)) /* 如果当前节点空闲对象为0 && （共享对象缓冲池中没有空闲对象 || 共享对象缓冲池中没有空闲对象， 执行direct_grow标号下的代码） */
   		goto direct_grow;
-  
+
   	spin_lock(&n->list_lock);
   	shared = READ_ONCE(n->shared);
-  
+
   	/* See if we can refill from the shared array */
   	if (shared && transfer_objects(ac, shared, batchcount)) { /* 首先判断共享对象缓冲池中有没有空闲对象，如果有，就尝试迁移 batchcount 个空闲对象到本地对象缓冲池 ac 中。transfer_objects()函数用于从共享对象缓冲池填充空闲对象到本地对象缓冲池。如果共享对象缓冲池中没有空闲对象， 那么执行后面的while语句*/
   		shared->touched = 1;
   		goto alloc_done;
   	}
-  
+
   	while (batchcount > 0) {
   		/* Get slab alloc is to come from. */
   		page = get_first_slab(n, false);/* 如果共享对象缓冲池中没有空闲对象， 那么通过函数get_first_slab()查看slab节点中的slabs_partial链表和slabs_free链表 */
   		if (!page)
   			goto must_grow; /* slab节点中的slabs_partial链表和slabs_free链表都为空时，说明整个slab节点都没有空闲对象，这时需要重新分配slab，跳转到must_grow标签处，真正分配对象是在cache_grow_begin()函数 */
-  
+
   		check_spinlock_acquired(cachep);
-  
+
   		batchcount = alloc_block(cachep, ac, page, batchcount);
   		fixup_slab_list(cachep, n, page, &list);
   	}
-  
+
   must_grow:
   	n->free_objects -= ac->avail;
   alloc_done:
   	spin_unlock(&n->list_lock);
   	fixup_objfreelist_debug(cachep, &list);
-  
+
   direct_grow:
   	if (unlikely(!ac->avail)) {
   		/* Check if we can use obj in pfmemalloc slab */
   		if (sk_memalloc_socks()) {
   			void *obj = cache_alloc_pfmemalloc(cachep, n, flags);
-  
+
   			if (obj)
   				return obj;
   		}
-  
+
   		page = cache_grow_begin(cachep, gfp_exact_node(flags), node);
-  
+
   		/*
   		 * cache_grow_begin() can reenable interrupts,
   		 * then ac could change.
@@ -2074,19 +2074,19 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   		if (!ac->avail && page) /* cache_grow_begin()函数仅仅重新分配了slab，但当前CPU的ac->avail为0，所以需要重新来一次alloc_block，这一次就一定能分配出来对象obj。 */
   			alloc_block(cachep, ac, page, batchcount);
   		cache_grow_end(cachep, page);
-  
+
   		if (!ac->avail)
   			return NULL;
   	}
   	ac->touched = 1;
-  
+
   	return ac->entry[--ac->avail];
   }
-  
+
   static struct page *get_first_slab(struct kmem_cache_node *n, bool pfmemalloc)
   {	/* 如果slabs_partial链表 或者 slabs_free链表不为空，说明有空闲对象，那么取出数据结构page */
   	struct page *page;
-  
+
   	assert_spin_locked(&n->list_lock);
   	page = list_first_entry_or_null(&n->slabs_partial, struct page, lru);
   	if (!page) {
@@ -2096,13 +2096,13 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   		if (page)
   			n->free_slabs--;
   	}
-  
+
   	if (sk_memalloc_socks())
   		page = get_valid_first_slab(n, page, pfmemalloc);
-  
+
   	return page;
   }
-  
+
   static __always_inline int alloc_block(struct kmem_cache *cachep,
   		struct array_cache *ac, struct page *page, int batchcount)
   {
@@ -2111,44 +2111,44 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	 * allocation.
   	 */
   	BUG_ON(page->active >= cachep->num); /* active 表示已分配对象数量 */
-  
+
   	while (page->active < cachep->num && batchcount--) {
   		STATS_INC_ALLOCED(cachep);
   		STATS_INC_ACTIVE(cachep);
   		STATS_SET_HIGH(cachep);
-  
+
   		ac->entry[ac->avail++] = slab_get_obj(cachep, page); /* 通过slab_get_obj()函数获取对象的地址， 以下index_to_obj(), get_free_obj()两个函数是其内部调用 */
   	}
-  
+
   	return batchcount;
   }
-  
+
   static void *slab_get_obj(struct kmem_cache *cachep, struct page *page)
   {
   	void *objp;
-  
+
   	objp = index_to_obj(cachep, page, get_free_obj(page, page->active));
   	page->active++;
-  
+
   #if DEBUG
   	if (cachep->flags & SLAB_STORE_USER)
   		set_store_user_dirty(cachep);
   #endif
-  
+
   	return objp;
   }
-  
+
   static inline void *index_to_obj(struct kmem_cache *cache, struct page *page,
   				 unsigned int idx)
   {
   	return page->s_mem + cache->size * idx;
   }
-  
+
   static inline freelist_idx_t get_free_obj(struct page *page, unsigned int idx)
   {
   	return ((freelist_idx_t *)page->freelist)[idx];
   }
-  
+
   ```
 
 - `kmem_cache_alloc() -> ____cache_alloc() -> cache_alloc_refill() -> cache_grow_begin()`
@@ -2164,7 +2164,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	int page_node;
   	struct kmem_cache_node *n;
   	struct page *page;
-  
+
   	/*
   	 * Be lazy and only check for valid flags here,  keeping it out of the
   	 * critical path in kmem_cache_alloc().
@@ -2177,11 +2177,11 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   		dump_stack();
   	}
   	local_flags = flags & (GFP_CONSTRAINT_MASK|GFP_RECLAIM_MASK);
-  
+
   	check_irq_off();
   	if (gfpflags_allow_blocking(local_flags))
   		local_irq_enable();
-  
+
   	/*
   	 * Get mem for the objs.  Attempt to allocate a physical page from
   	 * 'nodeid'.
@@ -2189,39 +2189,39 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	page = kmem_getpages(cachep, local_flags, nodeid);/* 分配一个slab所需要的页面，这里会分配2^(cachep->gfporder)个页面，cachep->gfporder已经在kmem_cache_create()函数中初始化了。kmem_getpages()最终调用了伙伴系统的分配函数__alloc_pages_nodemask()，该函数解析，可查阅第十章“伙伴系统之二” */
   	if (!page)
   		goto failed;
-  
+
   	page_node = page_to_nid(page);
   	n = get_node(cachep, page_node);
-  
+
   	/* Get colour for the slab, and cal the next value. */
       /* n->colour_next 表示slab节点中下一个slabs应该包括的colour数目，cache colour从0开始增加，每个slabs加1，知道这个slab描述符的colour最大值cachep->colour，然后又从0开始计算。colour的大小为 cache line大小，即cachep->colour_off，这样布局有利于提高硬件cache效率 */
   	n->colour_next++;
   	if (n->colour_next >= cachep->colour)
   		n->colour_next = 0;
-  
+
   	offset = n->colour_next;
   	if (offset >= cachep->colour)
   		offset = 0;
-  
+
   	offset *= cachep->colour_off;
-  
+
   	/* Get slab management. */
       /* alloc_slabmgmt()函数计算slab中的cache colour和freelist，以及对象的地址布局,page->freelist 是内存块开始地址加上cache colour后的地址，可以想象成一个 char 类型的数组，每个对象占用一个数组成员来存放对象的序号。*/
   	freelist = alloc_slabmgmt(cachep, page, offset,
   			local_flags & ~GFP_CONSTRAINT_MASK, page_node);
   	if (OFF_SLAB(cachep) && !freelist)
   		goto opps1;
-  
+
   	slab_map_pages(cachep, page, freelist); /* 配置page->slab_cache，page->freelist 使其分布指向cachep、freelist */
-  
+
   	kasan_poison_slab(page);
   	cache_init_objs(cachep, page); /* 初始化slab中所有对象的状态，其中调用set_free_obj()函数会把对象的序号填入到freelist数组中 */
-  
+
   	if (gfpflags_allow_blocking(local_flags))
   		local_irq_disable();
-  
+
   	return page;
-  
+
   opps1:
   	kmem_freepages(cachep, page);
   failed:
@@ -2236,10 +2236,10 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   {
   	void *freelist;
   	void *addr = page_address(page);
-  
+
   	page->s_mem = addr + colour_off; /* page->s_mem是slab中第一个对象的开始地址，内存块开始地址加上colour_off */
   	page->active = 0;
-  
+
   	if (OBJFREELIST_SLAB(cachep))
   		freelist = NULL;
   	else if (OFF_SLAB(cachep)) {
@@ -2253,13 +2253,13 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   		freelist = addr + (PAGE_SIZE << cachep->gfporder) -
   				cachep->freelist_size;
   	}
-  
+
   	return freelist;
   }
-  
+
   ```
-  
-  
+
+
 
 ### 11.6.3 释放slab缓冲对象
 
@@ -2273,36 +2273,36 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	cachep = cache_from_obj(cachep, objp); /* cache_from_obj(）函数通过要释放对象objp的虚拟地址找到对应的struct kmem_cache数据结构 */
   	if (!cachep)
   		return;
-  
+
   	local_irq_save(flags); /* 关闭本地CPU中断 */
   	debug_check_no_locks_freed(objp, cachep->object_size);
   	if (!(cachep->flags & SLAB_DEBUG_OBJECTS))
   		debug_check_no_obj_freed(objp, cachep->object_size);
   	__cache_free(cachep, objp, _RET_IP_);
   	local_irq_restore(flags);
-  
+
   	trace_kmem_cache_free(_RET_IP_, objp);
   }
-  
+
   static inline void __cache_free(struct kmem_cache *cachep, void *objp,
   				unsigned long caller)
   {
   	/* Put the object into the quarantine, don't touch it for now. */
   	if (kasan_slab_free(cachep, objp))
   		return;
-  
+
   	___cache_free(cachep, objp, caller);
   }
-  
+
   void ___cache_free(struct kmem_cache *cachep, void *objp,
   		unsigned long caller)
   {
   	struct array_cache *ac = cpu_cache_get(cachep);
-  
+
   	check_irq_off();
   	kmemleak_free_recursive(objp, cachep->flags);
   	objp = cache_free_debugcheck(cachep, objp, caller);
-  
+
   	/*
   	 * Skip calling cache_free_alien() when the platform is not numa.
   	 * This will avoid cache misses that happen while accessing slabp (which
@@ -2312,35 +2312,35 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	 */
   	if (nr_online_nodes > 1 && cache_free_alien(cachep, objp))
   		return;
-  
+
   	if (ac->avail < ac->limit) {
   		STATS_INC_FREEHIT(cachep);
   	} else {
   		STATS_INC_FREEMISS(cachep);
   		cache_flusharray(cachep, ac); /* 当本地对象缓冲池的空闲对象ac->avail > ac->limit阈值时，就会调用cache_flusharray()做flush动作去尝试回收空闲对象。ac->limit阈值的计算在 enable_cpucache()函数中进行的 */
   	}
-  
+
   	if (sk_memalloc_socks()) {
   		struct page *page = virt_to_head_page(objp);
-  
+
   		if (unlikely(PageSlabPfmemalloc(page))) {
   			cache_free_pfmemalloc(cachep, page, objp);
   			return;
   		}
   	}
-  
+
   	ac->entry[ac->avail++] = objp;
   }
-  
+
   static void cache_flusharray(struct kmem_cache *cachep, struct array_cache *ac)
   {
   	int batchcount;
   	struct kmem_cache_node *n;
   	int node = numa_mem_id();
   	LIST_HEAD(list);
-  
+
   	batchcount = ac->batchcount;
-  
+
   	check_irq_off();
   	n = get_node(cachep, node);
   	spin_lock(&n->list_lock);
@@ -2353,7 +2353,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   			memcpy(&(shared_array->entry[shared_array->avail]),
   			       ac->entry, sizeof(void *) * batchcount);
   			shared_array->avail += batchcount;
-  			goto free_done; 
+  			goto free_done;
   		}
   	}
   	/* 共享对象缓冲池中的空闲对象数量等于limit阈值，那么执行free_block函数。 */
@@ -2363,10 +2363,10 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	{
   		int i = 0;
   		struct page *page;
-  
+
   		list_for_each_entry(page, &n->slabs_free, lru) {
   			BUG_ON(page->active);
-  
+
   			i++;
   		}
   		STATS_SET_FREEABLE(cachep, i);
@@ -2377,7 +2377,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	ac->avail -= batchcount;
   	memmove(ac->entry, &(ac->entry[batchcount]), sizeof(void *)*ac->avail); /* 本地对象缓冲池剩余的空闲对象迁移到buffer的头部 */
   }
-  
+
   /* free_block()函数会主动释放batchcount个空闲对象。 */
   static void free_block(struct kmem_cache *cachep, void **objpp,
   			int nr_objects, int node, struct list_head *list)
@@ -2385,21 +2385,21 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	int i;
   	struct kmem_cache_node *n = get_node(cachep, node);
   	struct page *page;
-  
+
   	n->free_objects += nr_objects;
-  
+
   	for (i = 0; i < nr_objects; i++) {
   		void *objp;
   		struct page *page;
-  
+
   		objp = objpp[i];
-  
+
   		page = virt_to_head_page(objp);
   		list_del(&page->lru);
   		check_spinlock_acquired_node(cachep, node);
   		slab_put_obj(cachep, page, objp);
   		STATS_DEC_ACTIVE(cachep);
-  
+
   		/* fixup slab chains */
   		if (page->active == 0) { /* 如果slab没有了活跃对象，即page->active == 0， page->active用于记录活跃slab对象的技术 */
   			list_add(&page->lru, &n->slabs_free);
@@ -2412,24 +2412,24 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   			list_add_tail(&page->lru, &n->slabs_partial);
   		}
   	}
-  
+
   	while (n->free_objects > n->free_limit && !list_empty(&n->slabs_free)) {
   		n->free_objects -= cachep->num;
-  
+
   		page = list_last_entry(&n->slabs_free, struct page, lru);
   		list_move(&page->lru, list);
   		n->free_slabs--;
   		n->total_slabs--;
   	}
   }
-  
-  
+
+
   [linux-4.14.130/mm/slab.h]
   static inline struct kmem_cache *cache_from_obj(struct kmem_cache *s, void *x)
   {
   	struct kmem_cache *cachep;
   	struct page *page;
-  
+
   	/*
   	 * When kmemcg is not being used, both assignments should return the
   	 * same value. but we don't want to pay the assignment price in that
@@ -2440,21 +2440,21 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	if (!memcg_kmem_enabled() &&
   	    !unlikely(s->flags & SLAB_CONSISTENCY_CHECKS))
   		return s;
-  
+
   	page = virt_to_head_page(x); /* 由对象的虚拟地址通过virt_to_head_page()函数（内部调用virt_to_page找到相应的page结构） */
   	cachep = page->slab_cache; /* 在一个slab中，第一个页面的page结构中page->slab_cache指向这个struct kmem_cache */
   	if (slab_equal_or_root(cachep, s))
   		return cachep;
-  
+
   	pr_err("%s: Wrong slab cache. %s but object is from %s\n",
   	       __func__, s->name, cachep->name);
   	WARN_ON_ONCE(1);
   	return s;
   }
-  
+
   ```
 
-  
+
 
 ### 11.6.4 kmalloc分配函数
 
@@ -2472,10 +2472,10 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   #ifndef CONFIG_SLOB
   		if (!(flags & GFP_DMA)) {
   			int index = kmalloc_index(size);
-  
+
   			if (!index)
   				return ZERO_SIZE_PTR;
-  
+
   			return kmem_cache_alloc_trace(kmalloc_caches[index],
   					flags, size);
   		}
@@ -2483,16 +2483,16 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	}
   	return __kmalloc(size, flags);
   }
-  
+
   /* kmalloc_index()函数方便查找使用的是哪个slab缓冲区，很形象地展示了kmalloc的设计思想 */
   static __always_inline int kmalloc_index(size_t size)
   {
   	if (!size)
   		return 0;
-  
+
   	if (size <= KMALLOC_MIN_SIZE)
   		return KMALLOC_SHIFT_LOW;
-  
+
   	if (KMALLOC_MIN_SIZE <= 32 && size > 64 && size <= 96)
   		return 1;
   	if (KMALLOC_MIN_SIZE <= 64 && size > 128 && size <= 192)
@@ -2522,12 +2522,9 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	if (size <=  32 * 1024 * 1024) return 25;
   	if (size <=  64 * 1024 * 1024) return 26;
   	BUG();
-  
+
   	/* Will never be reached. Needed because the compiler may complain */
   	return -1;
   }
-  
+
   ```
-
-  
-
