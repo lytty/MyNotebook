@@ -102,6 +102,10 @@
   
   ```
 
+
+
+## 2. 内核栈`thread_info`
+
 - `init_task`进程的`task_struct`数据结构中`stack`成员指向`thread_info`数据结构。通常内核栈大小是`8KB`，即两个物理页面的大小（内核栈大小通常和体系结构相关，`ARM32` 架构中内核栈大小是 `8KB`，`ARM64`架构中内核栈大小是 `16KB`。），它存放在内核映像文件中的`data`段中，在编译链接时预先分配好，具体可见`kernel4.14/arch/arm/kernel/vmlinux.lds.S`:
 
   ```
@@ -198,3 +202,120 @@
 - `__init_task_data`存放在`.data..init_task`段中，`__init_task_data`声明为`thread_union`类型，`thread_union`类型描述了整个内核栈`stack[]`，栈的最下面存放`struct thread_info`数据结构，因此，`__init_task_data`也通过宏`INIT_THREAD_INFO`来初始化`struct thread_info`数据结构。`init`进程的`task_struct`数据结构通过宏`INIT_TASK`来初始化。
 
 - `ARM32`处理器从汇编代码跳转到 C 语言的入口点在`start_kernel()`函数之前，设置了 SP 寄存器指向 8KB 内核栈顶部区域（要预留 8Byte 的空洞）。
+
+  `kernel4.14/arch/arm/kernel/head-common.S`
+
+  ```
+  __mmap_switched:
+  	adr	r3, __mmap_switched_data
+  
+  	ldmia	r3!, {r4, r5, r6, r7}
+  	cmp	r4, r5				@ Copy data segment if needed
+  1:	cmpne	r5, r6
+  	ldrne	fp, [r4], #4
+  	strne	fp, [r5], #4
+  	bne	1b
+  
+  	mov	fp, #0				@ Clear BSS (and zero fp)
+  1:	cmp	r6, r7
+  	strcc	fp, [r6],#4
+  	bcc	1b
+  
+   ARM(	ldmia	r3, {r4, r5, r6, r7, sp})
+   THUMB(	ldmia	r3, {r4, r5, r6, r7}	)
+   THUMB(	ldr	sp, [r3, #16]		)
+  	str	r9, [r4]			@ Save processor ID
+  	str	r1, [r5]			@ Save machine type
+  	str	r2, [r6]			@ Save atags pointer
+  	cmp	r7, #0
+  	strne	r0, [r7]			@ Save control register values
+  	b	start_kernel
+  ENDPROC(__mmap_switched)
+  
+  	.align	2
+  	.type	__mmap_switched_data, %object
+  __mmap_switched_data:
+  	.long	__data_loc			@ r4
+  	.long	_sdata				@ r5
+  	.long	__bss_start			@ r6
+  	.long	_end				@ r7
+  	.long	processor_id			@ r4
+  	.long	__machine_arch_type		@ r5
+  	.long	__atags_pointer			@ r6
+  #ifdef CONFIG_CPU_CP15
+  	.long	cr_alignment			@ r7
+  #else
+  	.long	0				@ r7
+  #endif
+  	.long	init_thread_union + THREAD_START_SP @ sp
+  	.size	__mmap_switched_data, . - __mmap_switched_data
+  
+  ```
+
+  `kernel4.14/arch/arm/include/asm/thread_info.h`
+
+  ```c
+  #define THREAD_START_SP		(THREAD_SIZE - 8)
+  
+  ```
+
+  在汇编代码`__mmap_switched`标签处设置相关的`r3 ~ r7`以及`SP`寄存器，其中，`SP`寄存器指向 `data` 段预留的 `8KB` 空间的顶部`（8KB - 8）`，然后跳转到`start_kernel()`。`__mmap_switched_data`标签处定义了`r4 ~ sp`寄存器的值，相当于一个表，通过`adr`指令把这表督导 `r3` 寄存器中，然后再通过 `ldmia` 指令写入相应的寄存器中。
+
+- 内核有一个常用的变量`current`用于获取当前进程`task_struct`数据结构，它利用了内核栈的特性。首先通过`SP`寄存器获取当前内核栈的地址，对齐后可以获取`struct thread_info`数据结构的指针，最后通过`thread_info->task`成员获取`task_struct`数据结构。如下图所示：![1572837563169](/home/haibin.xu/haibin/doc/picture/进程2.1 内核栈.png)
+
+  `kernel4.14/include/asm-generic/current.h`
+
+  ```c
+  #define get_current() (current_thread_info()->task)
+  #define current get_current()
+  
+  ```
+
+  `kernel4.14/arch/arm/include/asm/thread_info.h`
+
+  ```c
+  /*
+   * how to get the current stack pointer in C
+   */
+  register unsigned long current_stack_pointer asm ("sp");
+  
+  /*
+   * how to get the thread information struct from C
+   */
+  static inline struct thread_info *current_thread_info(void) __attribute_const__;
+  
+  static inline struct thread_info *current_thread_info(void)
+  {
+  	return (struct thread_info *)
+  		(current_stack_pointer & ~(THREAD_SIZE - 1));
+  }
+  
+  ```
+
+- `struct thread_info`数据结构的定义：`kernel4.14/arch/arm/include/asm/thread_info.h`
+
+  ```c
+  struct thread_info {
+  	unsigned long		flags;		/* low level flags */
+  	int			preempt_count;	/* 0 => preemptable, <0 => bug */
+  	mm_segment_t		addr_limit;	/* address limit */
+  	struct task_struct	*task;		/* main task structure */
+  	__u32			cpu;		/* cpu */
+  	__u32			cpu_domain;	/* cpu domain */
+  	struct cpu_context_save	cpu_context;	/* cpu context */
+  	__u32			syscall;	/* syscall number */
+  	__u8			used_cp[16];	/* thread used copro */
+  	unsigned long		tp_value[2];	/* TLS registers */
+  #ifdef CONFIG_CRUNCH
+  	struct crunch_state	crunchstate;
+  #endif
+  	union fp_state		fpstate __attribute__((aligned(8)));
+  	union vfp_state		vfpstate;
+  #ifdef CONFIG_ARM_THUMBEE
+  	unsigned long		thumbee_state;	/* ThumbEE Handler Base register */
+  #endif
+  };
+  
+  ```
+
+  

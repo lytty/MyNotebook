@@ -1,13 +1,13 @@
 # Linux内核内存管理(十一)——块分配器
 
-## 11.1 概述
+## 1 概述
 
-### 11.1.1 为什么要使用块分配器
+### 1.1 为什么要使用块分配器
 
 - 内核在运行时，经常需要在内核空间3G~3G+high_memory这个内存空间申请动态内存，以存放一些结构类型的数据。例如，在创建一个程序时，它就要为该程序控制块task_struct申请一段内存空间；在撤销这个程序时，又要释放这个空间。在内核中，由于这种结构体类型数据的数量相当大，而数据所占的内存空间又不可能刚好是一个或多个页框，所以在以页框为最小分配单位的分配方法里，这种数据产生的碎片就相当多，内存空间浪费比较惊人。
 - 于是，这就促使人们在不破坏页管理机制的条件下，考虑更小的内存分配粒度。所以自从Linux2.2开始，设计者在Linux系统中采用了一个叫做slab的小对象分配模式。
 
-- 外部碎片：什么是外部碎片呢？我们通过一个图来解释：![1568191232945](../picture/图11.17-外部碎片.png)
+- 外部碎片：什么是外部碎片呢？我们通过一个图来解释：![1568191232945](../picture/图17-外部碎片.png)
 
   假设这是一段连续的页框，阴影部分表示已经被使用的页框，现在需要申请一个连续的5个页框。这个时候，在这段内存上不能找到连续的5个空闲的页框，就会去另一段内存上去寻找5个连续的页框，这样子，久而久之就形成了页框的浪费。称为外部碎片。内核中使用伙伴算法的迁移机制(我们在后续章节中会介绍这种机制)很好的解决了这种外部碎片。
 
@@ -15,7 +15,7 @@
 
 - 伙伴系统分配内存时是以`page`为单位的，而在实际中有很多内存需求是以`Byte`为单位的，为了解决小块内存的分配问题，Linux内核提供了块分配器，最早实现的块分配器就是`slab`分配器。
 
-### 11.1.2 缓冲区和slab的概念
+### 1.2 缓冲区和slab的概念
 
 - slab模式是20世纪90年代提出的一个为小数据分配内存空间的方法。**在设计slab模式时，人们看到：内核的这些小数据虽然量很大，但是种类并不多，于是就提出了这样一个思想：把若干的页框合在一起形成一大存储块——slab，并在这个slab中只存储同一类数据，这样就可以在这个slab内部打破页的界限，以该类型数据的大小来定义分配粒度，存放多个数据，这样就可以尽可能地减少页内碎片了。在Linux中，多个存储同类数据的slab的集合叫做一类对象的缓冲区——cache。注意，这不是硬件的那个cache，只是借用这个名词而已。**
 - 采用slab模式的另一个考虑就是：**一些内核数据不但需要为其分配内存，而且还经常需要对它们进行一些比较费时的初始化操作。这样，当这些数据在内核运行时频繁地创建和撤销，就消耗了大量的CPU时间。而slab模式恰好就能解决这个问题。**
@@ -40,11 +40,11 @@
 
 
 
-## 11.2 编程接口
+## 2 编程接口
 
 - slab缓冲区有专用缓冲区和通用缓冲区之分，3种块分配器（`slab`，`slub`，`slob`）提供了统一的编程接口。
 
-### 11.2.1 通用缓冲区
+### 2.1 通用缓冲区
 
 - 对于内核的一些初始化工作量不大的数据结构可以使用通用缓冲区。在Linux中通用缓冲区按可分配对象空间的大小，分为可以容纳32字节大小对象的缓冲区、64字节大小对象的缓冲区……128KB对象大小的缓冲区。自**通用缓冲区申请对象空间的内核函数为kmalloc()，而释放对象空间的函数为kfree()。**
 
@@ -81,7 +81,7 @@
 
   ```
 
-### 11.2.2 专用缓冲区
+### 2.2 专用缓冲区
 
 - 使用通用的缓冲区的缺点是：块分配器需要找到一个对象的长度刚好大于或等于请求的内存长度的通用缓冲区，如果请求的内存长度和缓冲区的对象长度相差很远，浪费比较大，例如申请36字节，实际分配的内存长度是64字节，浪费了28字节。所以有时候使用者需要创建专用的缓冲区。
 
@@ -129,9 +129,9 @@
 
 
 
-## 11.3 `slab`分配器
+## 3 `slab`分配器
 
-### 11.3.1 数据结构
+### 3.1 数据结构
 
 - 缓冲区的数据结构如下图：![1567418444054](../picture/内存缓存的数据结构.png)
 
@@ -221,6 +221,8 @@
 
      [linux-4.14/mm/slab.c]
      184  struct array_cache {
+     ```
+  
   	 185  	unsigned int avail; /* 对象缓存池中可用的对象数目 */
      186  	unsigned int limit; /* 和 struct kmem_cache 数据结构中的语义一致*/
   	 187  	unsigned int batchcount; /* 和 struct kmem_cache 数据结构中的语义一致*/
@@ -229,16 +231,16 @@
      190  			 * Must have this definition in here for the proper
      191  			 * alignment of array_cache. Also simplifies accessing
      192  			 * the entries.
-     193  			 */
+   193  			 */
      194  };
 
      ```
 
   3. 每个内存节点对应一个`kmem_cache_node`实例。该实例包含3个`slab`链表：链表`slabs_partial`把部分对象空闲的`slab`链接起来，链表`slabs_full`把没有空闲对象的`slab`链接起来，链表`slabs_free`把所有对象空闲的`slab`链接起来。成员`total_slabs`是`slab`数量。
-
-     ```c
+  
+   ```c
      [linux-4.14/mm/slab.h]
-
+  
      453  struct kmem_cache_node {
      454  	spinlock_t list_lock;
      455  
@@ -266,7 +268,7 @@
      477  	struct list_head full;
      478  #endif
      479  #endif
-     480  
+   480  
      481  };
 
      ```
@@ -274,10 +276,10 @@
      每个`slab`由一个或多个连续的物理页组成，页的阶数是`kmem_cache.gfporder`，如果阶数大于0，组成一个复合页。`slab`被划分为多个对象，大多数情况下，`slab`长度不是对象长度的整数倍，`slab`有剩余部分，可以用来给`slab`着色：“把`slab`的第一个对象从`slab`的起始位置偏移一个数值，偏移值是处理器的一级缓存行长度的整数倍，不同`slab`的偏移值不同，使不同`slab`的对象映射到处理器不同的缓存行”，所以我们看到在`slab`的前面有一个着色部分。
 
      page结构体的相关成员如下(无关的成员已省略)：
-
-     ```c
+  
+   ```c
      /* linux-4.14/include/linux/mm_types.h */
-
+  
      42  struct page {
      43  	/* First double word block */
      44  	unsigned long flags;		/* `flags`设置标志位`PG_slab`，表示页属于`slab`分配器 */
@@ -321,37 +323,41 @@
      			...
      188  		struct kmem_cache *slab_cache;	/* `slab_cache`指向`kmem_cache`实例 */
      189  	};
-     		...
+   		...
      213  }
 
-     ```
+   ```
 
      `kfree`函数怎么知道对象属于哪个通用的缓冲区？ 分为以下5步：
-
+  
      * 根据对象的虚拟地址得到物理地址，因为块分配器使用的虚拟地址属于直接映射的内核虚拟地址空间，虚拟地址=物理地址+常量，把虚拟地址转换成物理地址很方便；
      * 根据物理地址得到物理页号；
      * 根据物理页号得到page实例；
-     * 如果是复合页，需要得到首页的page实例；
+   * 如果是复合页，需要得到首页的page实例；
      * 根据page实例的成员`slab_cache`得到`kmem_cache`实例。
 
   4. `kmem_cache`实例的成员`cpu_cache`指向`array_cache`实例，每个处理器对应一个`array_cache`实例，称为数组缓存，用来缓存刚刚释放的对象，分配时首先从当前处理器的数组缓存分配，避免每次都要从`slab`分配，减少链表操作和锁操作，提高分配速度。`slab`描述符给每个CPU都提供了一个对象缓存池（`array_cache`），其数据结构定义如下：
-
-     ```c
+  
+   ```c
   [linux-4.14/mm/slab.c]
-
+  
      184  struct array_cache {
      185  	unsigned int avail; //对象缓存池中可用的对象数目，即数组`entry`存放的对象数量
      186  	unsigned int limit; //数组缓存大小
      187  	unsigned int batchcount; //同 struct kmem_cache 定义
+   ```
+
   	188  	unsigned int touched; //从缓存池移除一个对象时，将touched置1，而收缩缓存时，将touched置0
      189  	void *entry[]; //保存对象的实体，存放对象的地址
   194  };
-
+  
+     ```
+  
      ```
 
 
      每个对象的内存布局如下图：           ![1567503060156](../picture/对象的内存布局.png)
-
+    
      * 红色区域1：长度是8字节，写入一个魔幻数，如果值被修改，说明对象被改写；
      * 真实对象：长度是`kmem_cache.obj_size`，偏移是`kmem_cache.obj_offset`；
      * 填充：用来对齐的填充字节；
@@ -398,7 +404,7 @@
 
 
 
-### 11.3.2 空闲对象链表
+### 3.2 空闲对象链表
 
 - 每个`slab`需要一个空闲对象链表，从而把所有空闲对象链接起来，空闲对象链表是用数组实现的，数组的元素个数是`slab`的对象数量，数组存放空闲对象的索引。假设一个`slab`包含4个对象，空闲对象链表的初始状态如下图所示：![1567515554595](../picture/空闲对象链表的初始状态.png)
 
@@ -445,7 +451,7 @@
 
 
 
-### 11.3.3 计算`slab`长度
+### 3.3 计算`slab`长度
 
 - 函数`calculate_slab_order`负责计算`slab`长度，即一个`slab`需要多少个物理页面，同时计算`slab`中可以容纳多少个对象，其定义如下：
 
@@ -474,7 +480,7 @@
   			size_t freelist_size;
 
   			freelist_size = num * sizeof(freelist_idx_t); /* freelist_idx_t是对象索引的数据类型, unsigned char or unsigned short */
-  			freelist_cache = kmalloc_slab(freelist_size, 0u); /* 根据size获取对应的kmem_cache对象，这个对象（缓冲区）是为空闲链表创建的，可参考本章`11.3.2 空闲对象链表`小节内容 */
+  			freelist_cache = kmalloc_slab(freelist_size, 0u); /* 根据size获取对应的kmem_cache对象，这个对象（缓冲区）是为空闲链表创建的，可参考本章`3.2 空闲对象链表`小节内容 */
   			if (!freelist_cache)
   				continue;
 
@@ -582,7 +588,7 @@
 
 
 
-### 11.3.4 着色
+### 3.4 着色
 
 - `slab`是一个或多个连续的物理页，起始地址总是页长度的整数倍，不同`slab`中相同的偏移位置在处理器一级缓存中的索引相同。如果`slab`的剩余部分的长度超过一级缓存行的长度，剩余部分对应的一级缓存行没有被利用；如果对象的填充字节的长度超过一级缓存行的长度，填充字节对应的一级缓存行没有被利用。这两种情况导致处理器的某些缓存行被过度使用，另一些缓存行很少使用。
 - 在`slab`的剩余部分的长度超过一级缓存行的长度的情况下，为了均匀利用处理器的所有一级缓存行，`slab`着色（slab corloring）利用`slab`的剩余部分，使不同`slab`的第一个对象的偏移不同。
@@ -600,7 +606,7 @@
 
 
 
-### 11.3.5 每处理器数组缓存
+### 3.5 每处理器数组缓存
 
 - 如下图所示， 缓冲区为每个处理器创建了一个数组缓存（结构体`array_cache`）。释放对象时，把对象存放到当前处理器对应的数组缓存中：分配对象时，先从当前处理器的数组缓存分配对象，采用后进先出（Last In Fisrt Out, LIFO）的原则，这种做法可以提高性能。![1567587850895](../picture/图11.6-每处理器数组缓存.png)
   1. 刚释放的对象很可能还在处理器的缓存中，可以更好地利用处理器的缓存。
@@ -618,7 +624,7 @@
 
 
 
-### 11.3.6 缓冲区合并
+### 3.6 缓冲区合并
 
 - 为了减少内存开销和增加对象的缓存热度，块分配器会合并相似的缓冲区。在创建缓冲区的时候，从已经存在的缓冲区中找到一个相似的缓冲区，和原始的创建者共享这个缓冲区。3种分配器都（`slab`，`slub`，`slob`）支持缓冲区合并。
 
@@ -666,7 +672,7 @@
 
 
 
-### 11.3.7 回收内存
+### 3.7 回收内存
 
 - 对于所有对象空闲的`slab`，没有立即释放，而是放在空闲`slab`链表中。只有内存节点上空闲对象的数量超过限制，才开始回收空闲`slab`，直到空闲对象的数量小于或等于限制。
 - 如下图所示，结构体`kmem_cache_node`的成员`slabs_free`是空闲`slab`链表的头节点，成员`free_objects`是空闲对象的数量，成员`free_limit`是空闲对象的数量限制。                               ![1567601151502](../picture/图11.7-回收空闲SLAB.png)
@@ -683,7 +689,7 @@
 
 
 
-### 11.3.8 调试
+### 3.8 调试
 
 - 出现内存改写时，我们需要定位出是谁改写。`slab`分配器提供了调试功能，我们可以打开调试配置宏`CONFIG_DEBUG_SLAB`，此时对象增加3个字段：红色区域1、红色区域2和最后一个使用者，如下图所示：![1567503060156](../picture/对象的内存布局.png)
 
@@ -694,7 +700,7 @@
 
 
 
-## 11.4 `slub`分配器
+## 4 `slub`分配器
 
 - `slub`分配器继承了`slab`分配器的核心思想，在某些地方做了改进：
   1. `slab`分配器的管理数据结构开销大，早期每个`slab`有一个描述符和跟在后面的空闲对象数组。`slub`分配器把`slab`的管理信息保存在page结构体中，使用联合体重用`page`的结构体成员，没有使`page`结构体的大小增加。现在`slab`分配器反过来向`slub`分配器学习，抛弃了`slab`描述符，把`slab`的管理信息保存在page结构体中。
@@ -702,7 +708,7 @@
   3. `slab`分配器对`NUMA`系统的支持复杂，每个内存节点有共享数组缓存和远程节点数组缓存，对象在这些数组缓存之间转移，实现复杂。`slub`分配器做了简化。
   4. `slub`分配器抛弃了效果不明显的`slab`着色。
 
-### 11.4.1 数据结构
+### 4.1 数据结构
 
 - slub分配器缓冲区的数据结构如下图所示：![1567677191395](../picture/图11.8-SLUB分配器内存缓存的数据结构.png)
 
@@ -890,7 +896,7 @@
 
      其他情况下使用第二种内存布局。
 
-### 11.4.2 空闲对象链表
+### 4.2 空闲对象链表
 
 - 以对象使用第一种内存布局为例说明，一个`slab`的空闲对象链表的初始状态如下图所示：![1567769243773](/home/haibin.xu/haibin/doc/picture/图11.11-空闲对象链表的初始状态.png)
 
@@ -899,7 +905,7 @@
 
 
 
-### 11.4.3 计算slab长度
+### 4.3 计算slab长度
 
 - `slub`分配器在创建缓冲区的时候计算了两种`slab`长度：最优`slab`和最小`slab`。最优`slab`是剩余部分比例最小的`slab`，最小`slab`只需要足够存放一个对象。当设备长时间运行以后，内存碎片化，分配连续物理页很难成功，如果分配最优`slab`失败，就分配最小`slab`。
 - 计算最优`slab`的长度时，有3个重要的控制参数：
@@ -950,13 +956,14 @@
 
 
 
-### 11.4.4 每处理器`slab`缓存
+### 4.4 每处理器`slab`缓存
 
 - `slab`分配器的每处理器缓存以对象为单位，而`slub`分配器的每处理器缓存以`slab`为单位，如下图所示，缓冲区为每个处理器创建了一个`slab`缓存。![1567916927862](../picture/图11.13-slub分配器的每处理器slab缓存.png)
+  
   1. 使用结构体`kmem_cache_cpu`描述`slab`缓存，成员`page`指向当前使用的`slab`对应的`page`实例，成员`freelist`指向空闲对象链表，成员`partial`指向部分空闲`slab`链表。
   2. 当前使用的`slab`对应的`page`实例：成员`frozen`的值为1，表示当前`slab`被冻结在每处理器`slab`缓存中；成员`freelist`被设置为空指针。
-  3. 部分空闲`slab`链表: 只有打开配置宏`CONFIG_SLUB_CPU_PARTIAL`，才会使用部分空闲`slab`链表（如果打开了调试配置宏`CONFIG_SLUB_DEBUG`，还要求没有设置`slab`调试标志位），目前默认打开了这个配置宏。为了和内存节点的空闲`slab`链表区分，我们把每处理器`slab`缓存中的空闲`slab`链表称为每处理器空闲`slab`链表。
-
+3. 部分空闲`slab`链表: 只有打开配置宏`CONFIG_SLUB_CPU_PARTIAL`，才会使用部分空闲`slab`链表（如果打开了调试配置宏`CONFIG_SLUB_DEBUG`，还要求没有设置`slab`调试标志位），目前默认打开了这个配置宏。为了和内存节点的空闲`slab`链表区分，我们把每处理器`slab`缓存中的空闲`slab`链表称为每处理器空闲`slab`链表。
+  
 - 链表中每个`slab`对应的`page`实例成员`frozen`的值为1，表示`slab`被冻结在每处理器`slab`缓存中；成员`next`指向下一个slab对应的`page`实例。
 - 链表中第一个`slab`对应的`page`实例的成员`pages`存放链表中`slab`的数量，成员`pobjects`存放链表中空闲对象的数量；后面的`slab`没有使用这两个成员。
 - `kmem_cache`实例的成员`cpu_partial`决定了链表中空闲对象的最大数量，是根据对象长度估算的值。
@@ -972,14 +979,14 @@
 
 
 
-### 11.4.5 回收内存
+### 4.5 回收内存
 
 - 对于所有对象空闲的`slab`，如果内存节点的部分空闲`slab`的数量大于或等于最小部分空闲`slab`数量，那么直接释放，否则放在部分空闲`slab`链表的尾部。
 - 最小部分空闲`slab`数量`kmem_cache.min_partial`的计算方法：（log2（对象长度））/2，并且把限制在范围[5, 10]。
 
 
 
-### 11.4.6 调试
+### 4.6 调试
 
 - 如果我们需要使用slub分配器的调试功能，首先需要打开调试配置宏`CONFIG_DEBUG_SLUB`，然后有如下两种选择：
   1. 打开配置宏`CONFIG_SLUB_DEBUG_ON`，为所有缓冲区打开所有所有调试选项。
@@ -1005,11 +1012,11 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
 
 
 
-## 11.5 `slob`分配器
+## 5 `slob`分配器
 
 - `slob`分配器的最大特点就是简洁，代码只有600多行，特别适合小内存的嵌入式设备。
 
-### 11.5.1 数据结构
+### 5.1 数据结构
 
 - `slob`分配器缓冲区的数据结构如下图所示：![1567924712701](../picture/图11.14-SLOB分配器内存缓存的数据结构.png)
 
@@ -1074,7 +1081,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
 
 
 
-### 11.5.2 空闲对象链表
+### 5.2 空闲对象链表
 
 - 在`slob`分配器中，对象更准确的说法是块（block），因为多个对象长度不同的缓冲区可能从同一个`slab`分配对象，一个`slab`可能出现大小不同的块。
 
@@ -1095,7 +1102,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
 
   `slab`的前面32字节被分配，空闲块从第32字节开始，第一个单元存放长度2032，第二单元存放下一个空闲块的偏移2048，`slab`对应的`page`结构体成员`freelist`指向这个空闲块，成员`units`存放空闲单元数量2032。
 
-### 11.5.3 分配对象
+### 5.3 分配对象
 
 - 分配对象时，根据对象长度选择不同的策略：
   1. 如果对象长度小于256字节，那么从小对象`slab`链表中查找`slab`分配。
@@ -1110,9 +1117,9 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
 
 
 
-## 11.6 相关函数解析
+## 6 相关函数解析
 
-### 11.6.1 创建缓冲区
+### 6.1 创建缓冲区
 
 - 如下图所示，缓冲区创建函数调用关系：![1568269468887](../picture/图11.18-缓冲区创建函数调用.png)
 
@@ -1196,7 +1203,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
 
 - `kmem_cache_create() -> __kmem_cache_alias()`                                ![1568269672835](../picture/图11.19-缓冲区合并.png)
 
-  `struct kmem_cache *__kmem_cache_alias(const char *name, size_t size, size_t align,unsigned long flags, void (*ctor)(void *))`，该函数解析请参考本章`11.3.6 缓冲区合并`章节
+  `struct kmem_cache *__kmem_cache_alias(const char *name, size_t size, size_t align,unsigned long flags, void (*ctor)(void *))`，该函数解析请参考本章`3.6 缓冲区合并`章节
 
   ```c
   [linux-4.14/mm/slab.c]
@@ -1232,14 +1239,14 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   302  		return NULL;
   303  
   304  	size = ALIGN(size, sizeof(void *));
-  305  	align = calculate_alignment(flags, align, size); /* 计算对齐值， 该函数解析请参考本章`11.3.1 数据结构`章节 */
+  305  	align = calculate_alignment(flags, align, size); /* 计算对齐值， 该函数解析请参考本章`3.1 数据结构`章节 */
   306  	size = ALIGN(size, align);
   307  	flags = kmem_cache_flags(size, flags, name, NULL); /* 直接返回flags */
   308  
   309  	if (flags & SLAB_NEVER_MERGE) /* 如果设置了阻止合并标志位SLAB_NEVER_MERGE，不能合并 */
   310  		return NULL;
   311  
-  312  	list_for_each_entry_reverse(s, &slab_root_caches, root_caches_node) { /* 遍历每个缓冲区s， 该遍历过程在本章`11.3.6 内缓冲区并`章节中有详细解析介绍 */
+  312  	list_for_each_entry_reverse(s, &slab_root_caches, root_caches_node) { /* 遍历每个缓冲区s， 该遍历过程在本章`3.6 内缓冲区并`章节中有详细解析介绍 */
   313  		if (slab_unmergeable(s)) /* 判断s是否设置了阻止合并的标志位 */
   314  			continue;
   315  
@@ -1437,7 +1444,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   2114  		}
   2115  	}
   2116  #endif
-      	/* 以下三个函数set_objfreelist_slab_cache、set_off_slab_cache、set_on_slab_cache主要用来确定空闲对象链表的位置，主要步骤可参考本章“11.3.2 空闲对象链表”小节 */
+      	/* 以下三个函数set_objfreelist_slab_cache、set_off_slab_cache、set_on_slab_cache主要用来确定空闲对象链表的位置，主要步骤可参考本章“3.2 空闲对象链表”小节 */
   2117  	/* 尝试使用一个对象存放空闲对象链表 */
   2118  	if (set_objfreelist_slab_cache(cachep, size, flags)) {
   2119  		flags |= CFLGS_OBJFREELIST_SLAB;
@@ -1509,7 +1516,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	/* 如果指定了对象的构造函数，或者是指定了标志位SLAB_TYPESAFE_BY_RCU（表示使用RCU技术延迟释放slab），这种方案不合适 */
   	if (cachep->ctor || flags & SLAB_TYPESAFE_BY_RCU)
   		return false;
-  	/* 计算slab长度和slab的对象数量， 该函数我们在本章节“11.3.3 计算slab长度”小节中有详细解析 */
+  	/* 计算slab长度和slab的对象数量， 该函数我们在本章节“3.3 计算slab长度”小节中有详细解析 */
   	left = calculate_slab_order(cachep, size,
   			flags | CFLGS_OBJFREELIST_SLAB);
   	if (!cachep->num)
@@ -1549,7 +1556,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   	/*
   	 * Size is large, assume best to place the slab management obj
   	 * off-slab (should allow better packing of objs).
-  	 × 计算slab长度和slab的对象数量， 该函数我们在本章节“11.3.3 计算slab长度”小节中有详细解析
+  	 × 计算slab长度和slab的对象数量， 该函数我们在本章节“3.3 计算slab长度”小节中有详细解析
   	 */
   	left = calculate_slab_order(cachep, size, flags | CFLGS_OFF_SLAB);
   	if (!cachep->num)
@@ -1746,7 +1753,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   {
   	struct array_cache __percpu *cpu_cache, *prev;
   	int cpu;
-  	/* 首先调用alloc_kmem_cache_cpus()函数来分配Per-CPU类型的struct array_cache数据结构，我们称之为对象缓冲池，也就是本章“11.3.5 每处理器数组缓存”小节中讲述的数组缓存，对象缓冲池包含了一个Per-CPU类型的struct array_cache指针，即系统每个CPU有一个struct array_cache指针。当前CPU的array_cache称为本地对象缓冲池，另外还有一个概念为共享对象缓冲池 */
+  	/* 首先调用alloc_kmem_cache_cpus()函数来分配Per-CPU类型的struct array_cache数据结构，我们称之为对象缓冲池，也就是本章“3.5 每处理器数组缓存”小节中讲述的数组缓存，对象缓冲池包含了一个Per-CPU类型的struct array_cache指针，即系统每个CPU有一个struct array_cache指针。当前CPU的array_cache称为本地对象缓冲池，另外还有一个概念为共享对象缓冲池 */
   	cpu_cache = alloc_kmem_cache_cpus(cachep, limit, batchcount);
   	if (!cpu_cache)
   		return -ENOMEM;
@@ -1909,7 +1916,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
 
   ```
 
-### 11.6.2 分配slab对象
+### 6.2 分配slab对象
 
 - `kmem_cache_alloc()`是分配slab缓存对象的核心函数，在slab分配过程中是全程关闭本地中断的。
 
@@ -2261,7 +2268,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
 
 
 
-### 11.6.3 释放slab缓冲对象
+### 6.3 释放slab缓冲对象
 
 - 释放缓存对象的API函数是`kmem_cache_free()`，其定义如下：
 
@@ -2422,6 +2429,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
   		n->total_slabs--;
   	}
   }
+  ```
 
 
   [linux-4.14.130/mm/slab.h]
@@ -2432,14 +2440,15 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
 
   	/*
   	 * When kmemcg is not being used, both assignments should return the
-  	 * same value. but we don't want to pay the assignment price in that
-  	 * case. If it is not compiled in, the compiler should be smart enough
-  	 * to not do even the assignment. In that case, slab_equal_or_root
-  	 * will also be a constant.
-  	 */
-  	if (!memcg_kmem_enabled() &&
-  	    !unlikely(s->flags & SLAB_CONSISTENCY_CHECKS))
-  		return s;
+        	 * same value. but we don't want to pay the assignment price in that
+        	 * case. If it is not compiled in, the compiler should be smart enough
+                	 * to not do even the assignment. In that case, slab_equal_or_root
+        	 * will also be a constant.
+          
+          	 */
+            	if (!memcg_kmem_enabled() &&
+            	    !unlikely(s->flags & SLAB_CONSISTENCY_CHECKS))
+            		return s;
 
   	page = virt_to_head_page(x); /* 由对象的虚拟地址通过virt_to_head_page()函数（内部调用virt_to_page找到相应的page结构） */
   	cachep = page->slab_cache; /* 在一个slab中，第一个页面的page结构中page->slab_cache指向这个struct kmem_cache */
@@ -2456,7 +2465,7 @@ slub_debug=<调试选项>,<内缓冲区称>	只为指定的内存缓冲区调试
 
 
 
-### 11.6.4 kmalloc分配函数
+### 6.4 kmalloc分配函数
 
 - 内核中常用的`kmalloc()`函数的核心是 `slab` 机制。类似伙伴系统机制，按照内存块的 2^order 来创建多个 `slab` 描述符，例如`16B、32B、64B、128B、...、32MB`等大小，系统会分布创建名为`kmalloc-16、kmalloc-32、kmalloc-64 ...`的`slab`描述符，这在系统启动时在`create_kmalloc_caches()`函数中完成。例如分配 30Byte 的一个小内存块，可以用`kmalloc(30, GFP_KERNEL)`，那么系统会从名为`kmalloc-32`的slab描述符中分配一个对象出来。
 

@@ -2,7 +2,7 @@
 
 - 内核初始化完毕后，使用页分配器管理物理页，当前使用页分配器是伙伴分配器，伙伴分配器的特点是算法简单且效率高。
 
-## 9.1 基本伙伴分配器
+## 1 基本伙伴分配器
 
 - 连续的物理页称为页块（page block）。
 
@@ -32,9 +32,9 @@
 
 
 
-## 9.2 分区伙伴分配器
+## 2 分区伙伴分配器
 
-### 9.2.1 数据结构
+### 2.1 数据结构
 
 - 分区的伙伴分配器专注于某个内存节点的某个区域。内存区域（`struce zone`）的结构体定义，我们在第四章《内存结构》章节中有做过详细叙述，本节我们只关注伙伴分配器相关的数据成员。
 
@@ -52,6 +52,7 @@
   462  	struct free_area	free_area[MAX_ORDER]; /* 不同长度的空闲区域 */
   		...
   509  } ____cacheline_internodealigned_in_smp;
+  ```
 
 
   96  struct free_area {
@@ -76,7 +77,7 @@
 
   ```
 
-### 9.2.2 根据分配标志得到首选区域类型
+### 2.2 根据分配标志得到首选区域类型
 
 - 分配标志位，也叫分配掩码，其在内核代码中分成两类，一类叫`zone modifiers`，另一类叫`action modifiers`。`zone modifiers`指定从哪个`zone`中分配所需的页面。`zone modifiers`由分配掩码的最低4位来定义：
 
@@ -152,6 +153,7 @@
   [linux-4.14/include/linux/gfp.h]
 
   61  #define GFP_ZONEMASK	(__GFP_DMA|__GFP_HIGHMEM|__GFP_DMA32|__GFP_MOVABLE)
+  ```
 
 
   334  /*
@@ -276,7 +278,7 @@
   ```
 
      UMA系统只有一个备用区域列表，按区域类型从高到底排序。假设UMA系统包含普通区域类型和DMA区域类型，那么备用区域列表是：{普通区域，DMA区域}。
-
+    
      NUMA系统的每个内存节点有两个备用区域列表：一个包含所有内存节点的备用区域列表，另一个只包含当前内存节点的备用区域列表。如果申请页时指定标志`__GFP_THISNODE`，要求只能从指定内存节点分配物理页，就需要使用指定内存节点的第二个备用区域列表。
 
 - 包含所有内存节点的备用区域列表有两种排序方法：
@@ -295,7 +297,7 @@
 
 
 
-## 9.4 区域水线
+## 3 区域水线
 
 - 首先的内存区域在什么情况下从备用区域借用物理页？这个问题要从区域水线开始说起。每个内存区域有3个水线。
 
@@ -357,7 +359,7 @@
 
 
 
-## 9.5 防止过度借用
+## 4 防止过度借用
 
 - 和高区域类型相比，低区域类型的内存相对少，是稀缺资源，而且有特殊用途，例如DMA区域用于外围设备和内存之间的数据传输。为了防止高区域类型过度借用低区域类型的物理页，低区域类型需要采取防卫措施，保留一定数量的物理页。
 
@@ -415,7 +417,7 @@
 
 
 
-## 9.6 根据可移动性分组
+## 5 根据可移动性分组
 
 - 在系统长时间运行后，物理内存可能出现很多碎片，可用物理页很多，但是最大的连续物理内存可能只有一页，内存碎片对用户程序不是问题，因为用户程序可以通过页表把连续的虚拟页映射到不连续的物理页。但是内存碎片对内核是一个问题，因为内核使用直接映射的虚拟地址空间，连续的虚拟页必须映射到连续的物理页。内存碎片是伙伴分配器的一个弱点。
 - 为了预防内存碎片，内核根据可移动性把物理页分为3种类型：
@@ -512,6 +514,7 @@
 
   ```c
   [linux-4.14/include/linux/gfp.h]
+  ```
 
 
   292  /* Convert GFP flags to their corresponding migrate type 把分配标志转换成迁移类型*/
@@ -561,6 +564,7 @@
 
   ```c
   [linux-4.14/mm/page_alloc.c]
+  ```
 
 
   2217  /*
@@ -582,14 +586,15 @@
   2238  	 * approximates finding the pageblock with the most free pages, which
   2239  	 * would be too costly to do exactly.
   		 * 在备用类型的页块链表中查找最大的页块
-  2240  	 */
-  2241  	for (current_order = MAX_ORDER - 1; current_order >= order;
-  2242  				--current_order) {
-  2243  		area = &(zone->free_area[current_order]);
-  2244  		fallback_mt = find_suitable_fallback(area, current_order,
-  2245  				start_migratetype, false, &can_steal);
-  	 		...
-  2262  	}
+    2240  	 */
+    2241  	for (current_order = MAX_ORDER - 1; current_order >= order;
+    2242  				--current_order) {
+    2243  		area = &(zone->free_area[current_order]);
+    2244  		fallback_mt = find_suitable_fallback(area, current_order,
+    2245  				start_migratetype, false, &can_steal);
+    	 		...
+    2262  	}
+
       	...
   2293  }
 
@@ -669,7 +674,7 @@
 
 
 
-## 9.7 每处理器页集合
+## 6 每处理器页集合
 
 - 内核针对分配单页做了性能优化，为了减少处理器之间的锁竞争，在内存区域增加1个每处理器页集合。
 

@@ -1,4 +1,4 @@
-# Linux内核内存管理（一）——设备树
+Linux内核内存管理（一）——设备树
 
 ## 概述
 
@@ -30,24 +30,23 @@
 ### 2.1 设备树的组成和使用
 - 设备树包含DTC（device tree compiler），DTS（device tree source和DTB（device tree blob）。三者关系如下：![1560627255433](../picture/dts加载过程.png)
 
-  1. .dts文件是一种ASCII 文本格式的Device Tree描述，此文本格式非常人性化，适合人类的阅读习惯。基本上，在ARM Linux在，一个.dts文件对应一个ARM的machine，一般放置在内核的arch/arm/boot/dts/目录。
+1. .dts文件是一种ASCII 文本格式的Device Tree描述，此文本格式非常人性化，适合人类的阅读习惯。基本上，在ARM Linux在，一个.dts文件对应一个ARM的machine，一般放置在内核的arch/arm/boot/dts/目录。
 
-  2. 由于一个SoC可能对应多个machine（一个SoC可以对应多个产品和电路板），势必这些.dts文件需包含许多共同的部分，Linux内核为了简化，把SoC公用的部分或者多个machine共同的部分一般提炼为.dtsi，类似于C语言的头文件。其他的machine对应的.dts就include这个.dtsi。当然，和C语言的头文件类似，.dtsi也可以include其他的.dtsi，譬如几乎所有的ARM SoC的.dtsi都引用了skeleton.dtsi，即#include"skeleton.dtsi“ 或者 /include/ "skeleton.dtsi"。
+- 由于一个SoC可能对应多个machine（一个SoC可以对应多个产品和电路板），势必这些.dts文件需包含许多共同的部分，Linux内核为了简化，把SoC公用的部分或者多个machine共同的部分一般提炼为.dtsi，类似于C语言的头文件。其他的machine对应的.dts就include这个.dtsi。当然，和C语言的头文件类似，.dtsi也可以include其他的.dtsi，譬如几乎所有的ARM SoC的.dtsi都引用了skeleton.dtsi，即#include"skeleton.dtsi“ 或者 /include/ "skeleton.dtsi"。
 
-  3. uboot和linux不能识别dts文件，只能识别二进制文件，所以需要将.dts文件编译成.dtb文件。dtb文件是一种可以被kernel和uboot识别的二进制文件。
+- uboot和linux不能识别dts文件，只能识别二进制文件，所以需要将.dts文件编译成.dtb文件。dtb文件是一种可以被kernel和uboot识别的二进制文件。
 
-     把.dts文件编译成.dtb文件的工具就是DTC。DTC的源码位于内核的scripts/dtc目录，内核选中CONFIG_OF，编译内核的时候，主机可执行程序DTC就会被编译出来。即scripts/dtc/Makefile中
+   1. 把.dts文件编译成.dtb文件的工具就是DTC。DTC的源码位于内核的scripts/dtc目录，内核选中CONFIG_OF，编译内核的时候，主机可执行程序DTC就会被编译出来。即scripts/dtc/Makefile中
 
-     ``````makefile
-     hostprogs-y := dtc
-      always := $(hostprogs-y)
-
-     ``````
-``````
-
-在内核的arch/arm/boot/dts/Makefile中，若选中某种SOC，则与其对应相关的所有dtb文件都将编译出来。在linux下，make dtbs可单独编译dtb。
-
-  在Linux的scripts/dtc目录下除了提供dtc工具外，也可以自己安装dtc工具，linux下执行：sudo apt-get install device-tree-compiler安装dtc工具。dtc工具的使用方法是：dtc -I dts -O dtb -o xxx.dtb xxx.dts，即可生成dts文件对应的dtb文件了。 当然了，dtc -I dtb -O dts -o xxx.dts xxx.dtb反过来即可生成dts文件。其中还提供了一个fdtdump的工具，可以dump dtb文件，方便查看信息。
+      ```makefile
+      hostprogs-y := dtc
+       always := $(hostprogs-y)
+      
+      ```
+      
+   2. 在内核的arch/arm/boot/dts/Makefile中，若选中某种SOC，则与其对应相关的所有dtb文件都将编译出来。在linux下，make dtbs可单独编译dtb。
+   
+   3. 在Linux的scripts/dtc目录下除了提供dtc工具外，也可以自己安装dtc工具，linux下执行：sudo apt-get install device-tree-compiler安装dtc工具。dtc工具的使用方法是：dtc -I dts -O dtb -o xxx.dtb xxx.dts，即可生成dts文件对应的dtb文件了。 当然了，dtc -I dtb -O dts -o xxx.dts xxx.dtb反过来即可生成dts文件。其中还提供了一个fdtdump的工具，可以dump dtb文件，方便查看信息。
 
 
 
@@ -82,13 +81,12 @@
   	aliases { };
   	memory { device_type = "memory"; reg = <0 0>; };
   };
-```
-
+  ```
+  
   如上，属性# address-cells的值为1，它代表以“/”根节点为parent的子节点中，reg属性中存在一个address值；#size-cells的值为1，它代表以“/” 根节点为parent的子节点中，reg属性中存在一个size值。即父节点的#address-cells和#size-cells的含义如下：
-
-  1. #address-cells，用来描述子节点“reg”属性的地址表中用来描述首地址的cell数量；
-
-      	2.  #size-cells，用来描述子节点“reg”属性的地址表中用来描述地址长度的cell数量；
+  
+  1.  #address-cells，用来描述子节点“reg”属性的地址表中用来描述首地址的cell数量；
+  2.  #size-cells，用来描述子节点“reg”属性的地址表中用来描述地址长度的cell数量；
 
 ### 2.3 典型节点描述
 
@@ -99,9 +97,10 @@
           bootargs = "tegraid=40.0.0.00.00 vmalloc=256M video=tegrafb console=ttyS0, 115200n8 earlyprintk";
   };
   ```
-
+  
+  
   chosen node 主要用来描述由系统指定的runtime parameter，它并没有描述任何硬件设备节点信息。原先通过tag list传递的一些linux kernel运行的参数，可以通过chosen节点来传递。如command line可以通过bootargs这个property来传递。如果存在chosen node，它的parent节点必须为“/”根节点。
-
+  
 - aliases node
 
   ```makefile
@@ -112,14 +111,15 @@
   	i2c9 = &pca9546_i2c3;
   };
   ```
-
+  
   aliases node用来定义别名，类似C++中引用。上面是一个在.dtsi中的典型应用，当使用i2c6时，也即使用pca9546_i2c0，使得引用节点变得简单方便。例：当.dts  include 该.dtsi时，将i2c6的status属性赋值为okay，则表明该主板上的pca9546_i2c0处于enable状态；反之，status赋值为disabled，则表明该主板上的pca9546_i2c0处于disenable状态。如下是引用的具体例子：
-
+  
   ```makefile
   &i2c6 {
-  	status = "okay";
-  };
+          status = "okay";
+        };
   ```
+
 
 - memory node
 
@@ -167,7 +167,7 @@
 ## 3. Device Tree文件结构
 
 - DTB由三部分组成：头（Header）、结构块（device-tree structure）、字符串块（string block），其布局结构如下：            ![560927134575](../picture/dtb文件结构.png)
-- 通过以上分析，可以得到Device Tree文件结构如下图所示。dtb文件的头部首先存放的是fdt_header的结构体信息，接着是填充区域，填充大小为off_dt_struct – sizeof(struct fdt_header)，填充的值为0。接着就是struct fdt_property结构体的相关信息。最后是dt_string部分。![1560931064859](../picture/dtb文件结构-2.png)
+- 通过以上分析，可以得到Device Tree文件结构如下图所示。dtb文件的头部首先存放的是fdt_header的结构体信息，接着是填充区域，填充大小为off_dt_struct – sizeof(struct fdt_header)，填充的值为0。接着就是struct fdt_property结构体的相关信息。最后是dt_string部分。 ![1560931064859](../picture/dtb文件结构-2.png)
 
 ### 3.1 Device Tree文件头信息
 
@@ -238,7 +238,7 @@
   85
   ```
 
-  ​		struct fdt_node_header描述节点信息，tag(有些地方也叫token)是标识node的起始结束等信息的标志位，name指向node名称的首地址。tag的取值如下。：  
+  struct fdt_node_header描述节点信息，tag(有些地方也叫token)是标识node的起始结束等信息的标志位，name指向node名称的首地址。tag的取值如下。：  
 
   ```c
   #define FDT_BEGIN_NODE	0x1		/* Start of node, full name */
@@ -269,7 +269,7 @@
   2. len为属性值的长度（包括‘\0’，单位：字节）；
   3. nameoff为属性名称存储位置相对于off_dt_strings的偏移地址。
 
-- 设备树节点的结构如下：![1560933536225](../picture/dt_struct结构图.png)
+- 设备树节点的结构如下：                    ![1560933536225](../picture/dt_struct结构图.png)
 
   一个节点的结构如下：
 
@@ -297,7 +297,7 @@
   }
   ```
 
-  ​	kernel根据Device Tree的文件结构信息转换成struct property结构体，并将同一个node节点下面的所有属性通过property.next指针进行链接，形成一个单链表。
+  kernel根据Device Tree的文件结构信息转换成struct property结构体，并将同一个node节点下面的所有属性通过property.next指针进行链接，形成一个单链表。
 
 - kernel解析Device Tree的函数调用过程如下图所示: ![1560934402504](../picture/内核解析设备树函数调用流程图.png)
 
@@ -901,16 +901,13 @@
    1069  }
    1070  EXPORT_SYMBOL(of_find_compatible_node);
    ```
-
-
-
-6. 根据节点属性的name查找device_node
-
-   `struct device_node *of_find_node_with_property(struct device_node *from,const char *prop_name)`
-
+   
+6. 跟据节点属性的name查找device_node
+`struct device_node *of_find_node_with_property(struct device_node *from,const char *prop_name)`
+   
    ```c
    // linux-5.1/drivers/of/base.c
-
+      
    1072  /**
    1073   *	of_find_node_with_property - Find a node which has a property with
    1074   *                                   the given name.
@@ -945,17 +942,16 @@
    1103  	return np;
    1104  }
    1105  EXPORT_SYMBOL(of_find_node_with_property);
+   
    ```
 
-
-
-7. 根据phandle查找device_node
+7. 跟据phandle查找device_node
 
    `struct device_node *of_find_node_by_phandle(phandle handle)`
 
    ```c
    // linux-5.1/drivers/of/base.c
-
+   
    1215  /**
    1216   * of_find_node_by_phandle - Find a node given a phandle
    1217   * @handle:	phandle of the node to find
@@ -1006,9 +1002,8 @@
    1262  	return np;
    1263  }
    1264  EXPORT_SYMBOL(of_find_node_by_phandle);
+   
    ```
-
-
 
 8. 根据alias的name获得设备id号
 
@@ -1016,7 +1011,7 @@
 
    ```c
    // linux-5.1/drivers/of/base.c
-
+   
    2014  /**
    2015   * of_alias_get_id - Get alias id for the given device_node
    2016   * @np:		Pointer to the given device_node
@@ -1045,9 +1040,8 @@
    2039  	return id;
    2040  }
    2041  EXPORT_SYMBOL_GPL(of_alias_get_id);
+   
    ```
-
-
 
 9. device node计数增加/减少
 
@@ -1057,7 +1051,7 @@
 
    ```c
    // linux-5.1/drivers/of/dynamic.c
-
+   
    25  /**
    26   * of_node_get() - Increment refcount of a node
    27   * @node:	Node to inc refcount, NULL is supported to simplify writing of
@@ -1084,17 +1078,16 @@
    48  		kobject_put(&node->kobj);
    49  }
    50  EXPORT_SYMBOL(of_node_put);
+   
    ```
 
-
-
-10. 根据property结构的name参数，在指定的device node中查找合适的property
+10.   根据property结构的name参数，在指定的device node中查找合适的property
 
     `struct property *of_find_property(const struct device_node *np,const char *name,int *lenp)`
 
     ```c
     // linux-5.1/drivers/of/base.c
-
+    
     272  struct property *of_find_property(const struct device_node *np,
     273  				  const char *name,
     274  				  int *lenp)
@@ -1109,17 +1102,16 @@
     283  	return pp;
     284  }
     285  EXPORT_SYMBOL(of_find_property);
+    
     ```
 
-
-
-11. 根据property结构的name参数，返回该属性的属性值
+11.   跟据property结构的name参数，返回该属性的属性值
 
     `const void *of_get_property(const struct device_node *np, const char *name,int *lenp)`
 
     ```c
     // linux-5.1/drivers/of/base.c
-
+    
     338  /*
     339   * Find a property with a given name for a given node
     340   * and return the value.
@@ -1132,11 +1124,10 @@
     347  	return pp ? pp->value : NULL;
     348  }
     349  EXPORT_SYMBOL(of_get_property);
+    
     ```
 
-
-
-12. 根据compat参数与device node的compatible匹配，返回匹配度
+12.   根据compat参数与device node的compatible匹配，返回匹配度
 
     `int of_device_is_compatible(const struct device_node *device,const char *compat)`
 
@@ -1157,17 +1148,16 @@
     560  	return res;
     561  }
     562  EXPORT_SYMBOL(of_device_is_compatible);
+    
     ```
 
-
-
-13. 获得父节点的device node
+13.   获得父节点的device node
 
     `struct device_node *of_get_parent(const struct device_node *node)`
 
     ```c
     // linux-5.1/drivers/of/base.c
-
+    
     679  /**
     680   *	of_get_parent - Get a node's parent if any
     681   *	@node:	Node to get parent
@@ -1189,17 +1179,16 @@
     697  	return np;
     698  }
     699  EXPORT_SYMBOL(of_get_parent);
+    
     ```
 
-
-
-14. 将matches数组中of_device_id结构的name和type与device node的compatible和type匹配，返回匹配度最高的of_device_id结构
+14.   将matches数组中of_device_id结构的name和type与device node的compatible和type匹配，返回匹配度最高的of_device_id结构
 
     `const struct of_device_id *of_match_node(const struct of_device_id *matches,const struct device_node *node)`
 
     ```c
     // linux-5.1/drivers/of/base.c
-
+    
     1129  /**
     1130   * of_match_node - Tell if a device_node has a matching of_match structure
     1131   *	@matches:	array of of device match structures to search in
@@ -1219,17 +1208,15 @@
     1145  	return match;
     1146  }
     1147  EXPORT_SYMBOL(of_match_node);
+    
     ```
 
-
-
-15. 根据属性名propname，读出属性值中的第index个u32数值给out_value
+15.  跟据属性名propname，读出属性值中的第index个u32数值给out_value
 
     `int of_property_read_u32_index(const struct device_node *np,const char *propname,u32 index, u32 *out_value)`
 
     ```c
     // linux-5.1/drivers/of/property.c
-
     98  /**
     99   * of_property_read_u32_index - Find and read a u32 from a multi-value property.
     100   *
@@ -1263,10 +1250,8 @@
     128  EXPORT_SYMBOL_GPL(of_property_read_u32_index);
     129  
     ```
-
-
-
-16. 根据属性名propname，读出该属性的数组中sz个属性值给out_values
+    
+16.  根据属性名propname，读出该属性的数组中sz个属性值给out_values
 
     `int of_property_read_u8_array(const struct device_node *np,const char *propname, u8 *out_values, size_t sz)`
 
@@ -1278,7 +1263,7 @@
 
     ```c
     // linux-5.1/include/linux/of.h
-
+    
     416  /**
     417   * of_property_read_u8_array - Find and read an array of u8 from a property.
     418   *
@@ -1396,9 +1381,7 @@
     530  }
     ```
 
-
-
-17. 根据属性名propname，读出该属性的u64属性值
+17.  根据属性名propname，读出该属性的u64属性值
 
     `int of_property_read_u64(const struct device_node *np, const char *propname,u64 *out_value)`
 
@@ -1434,9 +1417,7 @@
     328  }
     329  EXPORT_SYMBOL_GPL(of_property_read_u64);
     ```
-
-
-
+    
 18. 根据属性名propname，读出该属性的字符串属性值
 
     `int of_property_read_string(struct device_node *np, const char *propname,const char **out_string)`
@@ -1474,10 +1455,8 @@
     405  }
     406  EXPORT_SYMBOL_GPL(of_property_read_string);
     ```
-
-
-
-19. 根据属性名propname，读出该字符串属性值数组中的第index个字符串
+    
+19.  根据属性名propname，读出该字符串属性值数组中的第index个字符串
 
     `int of_property_read_string_index(struct device_node *np, const char *propname,int index, const char **output)`
 
@@ -1510,10 +1489,7 @@
     1163  	return rc < 0 ? rc : 0;
     1164  }
     ```
-
-
-
-20. 读取属性名propname中，字符串属性值的个数
+20.  读取属性名propname中，字符串属性值的个数
 
     `int of_property_count_strings(struct device_node *np, const char *propname)`
 
@@ -1538,9 +1514,6 @@
     1137  	return of_property_read_string_helper(np, propname, NULL, 0, 0);
     1138  }
     ```
-
-
-
 21. 读取该设备的第index个irq号
 
     `unsigned int irq_of_parse_and_map(struct device_node *dev, int index)`
@@ -1567,9 +1540,6 @@
     44  }
     45  EXPORT_SYMBOL_GPL(irq_of_parse_and_map);
     ```
-
-
-
 22. 读取该设备的第index个irq号，并填充一个irq资源结构体
 
     `int of_irq_to_resource(struct device_node *dev, int index, struct resource *r)`
@@ -1612,9 +1582,6 @@
     375  }
     376  EXPORT_SYMBOL_GPL(of_irq_to_resource);
     ```
-
-
-
 23. 获取该设备的irq个数
 
     `int of_irq_count(struct device_node *dev)`
@@ -1637,9 +1604,6 @@
     441  	return nr;
     442  }
     ```
-
-
-
 24. 获取设备寄存器地址，并填充寄存器资源结构体
 
     `int of_address_to_resource(struct device_node *dev, int index,struct resource *r)`
@@ -1675,7 +1639,6 @@
     803  	return __of_address_to_resource(dev, addrp, size, flags, name, r);
     804  }
     805  EXPORT_SYMBOL_GPL(of_address_to_resource);
-
 
     694  const __be32 *of_get_address(struct device_node *dev, int index, u64 *size,
     695  		    unsigned int *flags)
@@ -1715,10 +1678,7 @@
     729  }
     730  EXPORT_SYMBOL(of_get_address);
     ```
-
-
-
-25. 获取经过映射的寄存器虚拟地址
+25.  获取经过映射的寄存器虚拟地址
 
     `void __iomem *of_iomap(struct device_node *np, int index)`
 
@@ -1743,10 +1703,7 @@
     841  }
     842  EXPORT_SYMBOL(of_iomap);
     ```
-
-
-
-26. 根据device_node查找返回该设备对应的platform_device结构
+26.  根据device_node查找返回该设备对应的platform_device结构
 
     `struct platform_device *of_find_device_by_node(struct device_node *np)`
 
@@ -1771,10 +1728,7 @@
     60  }
     61  EXPORT_SYMBOL(of_find_device_by_node);
     ```
-
-
-
-27. 根据device node，bus id以及父节点创建该设备的platform_device结构
+27.  根据device node，bus id以及父节点创建该设备的platform_device结构
 
     `struct platform_device *of_device_alloc(struct device_node *np,const char *bus_id,struct device *parent)`
 
@@ -1838,10 +1792,7 @@
     159  }
     160  EXPORT_SYMBOL(of_device_alloc);
     ```
-
-
-
-28. 遍历of_allnodes中的节点挂接到of_platform_bus_type总线上,由于此时of_platform_bus_type总线上还没有驱动,所以此时不进行匹配
+28.  遍历of_allnodes中的节点挂接到of_platform_bus_type总线上,由于此时of_platform_bus_type总线上还没有驱动,所以此时不进行匹配
 
     `int of_platform_bus_probe(struct device_node *root,const struct of_device_id *matches,struct device *parent)`
 
