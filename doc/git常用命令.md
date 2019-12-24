@@ -15,11 +15,11 @@
 
    - 撤销操作
 
-     > git status 先看一下add 中的文件 
-     > git reset HEAD 如果后面什么都不跟的话 就是上一次add 里面的全部撤销了 
+     > git status 先看一下add 中的文件
+     > git reset HEAD 如果后面什么都不跟的话 就是上一次add 里面的全部撤销了
      > git reset HEAD XXX/XXX/XXX.java 就是对某个文件进行撤销了
 
-3.  跟踪分支 
+3.  跟踪分支
 
    - 设定：远程主机名origin，远程分支名remoteBranch，本地分支名localBranch
 
@@ -27,23 +27,23 @@
 
      ```
      一、远程分支存在，本地分支不存在
-     
+
      　　1、新建本地分支：git branch localBranch
-     
+
      　　　  然后跟踪本地分支：git branch -u origin/remoteBranch localBranch
-     
+
      　　2、直接新建并跟踪
-     
+
      　　　　1）git checkout --track origin/remoteBranch，但是这样新建的本地分支一定和跟踪的远程分支同名
-     
+
      　　　　2）git checkout -b localBranch origin/remoteBranch，这样新建的本地分支名（localBranch）可以自定义
-     
-      
+
+
      二、远程分支不存在，本地分支存在
-     
+
      　　git push -u origin localBranch:remoteBranch
-     
-      
+
+
      ```
     - 查看本地跟踪分支对应的远程分支：git branch -vv（两个v），就能够看到本地分支跟踪的远程分支
 
@@ -74,7 +74,7 @@
      Switched to a new branch 'sprdroidq_trunk'
      haibin.xu@tjand02:~/sprdroidq_trunk/vendor/sprd/proprietories-source/tiny-formatter$ git branch
      * sprdroidq_trunk
-     
+
      haibin.xu@tjand02:~/sprdroidq_trunk/vendor/sprd/proprietories-source/tiny-formatter$ git pull
      From ssh://gitmirror.spreadtrum.com/vendor/sprd/proprietories-source/tiny-formatter
       * [new branch]      sprdroid9.0_trunk_18c_itel_cus_dev -> korg/sprdroid9.0_trunk_18c_itel_cus_dev
@@ -84,7 +84,7 @@
      From .
       * branch            HEAD       -> FETCH_HEAD
      Already up-to-date.
-     
+
      ```
 
 4.  git commit
@@ -95,15 +95,15 @@
 
      ```
      git commit -m ‘
-     
+
      message1
-     
+
      message2
-     
+
      message3
-     
+
      ’
-     
+
      ```
 
    - **git commit -a -m “massage”** 其他功能如-m参数，加的-a参数可以将所有已跟踪文件中的执行修改或删除操作的文件都提交到本地仓库，即使它们没有经过git add添加到暂存区，注意，新加的文件（即没有被git系统管理的文件）是不能被提交到本地仓库的。建议一般不要使用-a参数，正常的提交还是使用git add先将要改动的文件添加到暂存区，再用git commit 提交到本地版本库。
@@ -114,25 +114,22 @@
 
    - 撤销git commit
 
-     使用**git reset --soft HEAD^**，注意，仅仅是撤回commit操作，您写的代码仍然保留
+     使用**git reset --soft HEAD^，注意，仅仅是撤回commit操作，您写的代码仍然保留
 
-5. 
+5. git show commit-id, 查看某个提交的修改内容
 
-6. 
+6. git log --author=haibin.xu, 查看某个owner的所有提交
 
-7. 
+7.
 
-8. 
+8.
 
-9. 
+9.
 
-10. 
+10.
 
-11. 
+11.
 
-12. 
+12.
 
-13. 
-
-    
-
+13.

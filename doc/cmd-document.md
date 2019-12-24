@@ -122,7 +122,7 @@
         - ssh -X haibin.xu@tjand02[(10.5.2.51)], 密码：外网密码
         - 文件拷贝：
             - `scp authorized_keys haibin.xu@tjand02:~/.ssh`
-            - `scp -r dt.img system.img kernel vendor.img spreadtrum\\haibin.xu@10.5.41.70:~/Desktop/sharkl5_8.1_img/sharkl5_8.1_img`
+            - `scp -r dt.img system.img kernel vendor.img spreadtrum\\haibin.xu@10.5.41.89:~/Desktop/sharkl5_8.1_img/sharkl5_8.1_img`
             - 多文件拷贝使用 `scp -r`
 
 
