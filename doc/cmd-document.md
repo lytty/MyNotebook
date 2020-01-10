@@ -366,4 +366,30 @@
     - sudo chmod 0600 ssh_host_dsa_key ssh_host_rsa_key;
     - cd;sudo /etc/init.d/ssh restart;
     回到原目录，重新push即可。
-
+38. clion快捷方式
+    ```
+    ctrl+8	Show usage函数或变量使用信息快速提示框
+    ctrl+]	Find usage函数或变量使用信息详细展示，使用左下角窗体的上下箭头快速在代码文件遍历查看
+    ctrl+0	全局查找字符串
+    ctrl+n	查找类定义
+    ctrl+\	查找symbol定义
+    ctrl+p	往前跳
+    ctrl+[	往后跳
+    ctrl+i	调用关系层次结构Call Hierarchy
+    ctrl+h	列出类的继承关系，比如一个virtual方法，可以通过此方式找到类然后，进一步找到继承类对应的virtual方法实现
+    ctrl+-	折叠光标所在函数或类
+    ctrl+=	展开光标所在函数或类
+    ctrl+shift+n	打开文件
+    ctrl+shift+alt+n	查找symbol定义
+    ctrl+shift+[	跳转到当前代码所在函数或者类头部
+    ctrl+shift+]	跳转到当前代码所在函数或者类尾部
+    ctrl+shift+m	在靠近的最外层caret之间跳转，即括号匹配体中来回跳转
+    ctrl+shift+Backtrace	回到上一次编译的地方Last Edit Location
+    ctrl+shift+alt+Backtrace	回到下一次编辑的地方（自定义快捷键）Next Edit Location
+    ctrl+letf或right	前后按单词跳转
+    ctrl+g	跳转到指定行
+    ctrl+e	最近打开过的文件
+    alt+shift+c	查看最近修改过的文件（快速定位最近修改的文件挺方便的）
+    ctrl+q	显示注释文档
+    alt+↑/↓	快速定位方法头部
+    ```
