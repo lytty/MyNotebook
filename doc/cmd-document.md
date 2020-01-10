@@ -366,3 +366,4 @@
     - sudo chmod 0600 ssh_host_dsa_key ssh_host_rsa_key;
     - cd;sudo /etc/init.d/ssh restart;
     回到原目录，重新push即可。
+

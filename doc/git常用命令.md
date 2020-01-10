@@ -120,7 +120,8 @@
 
 6. git log --author=haibin.xu, 查看某个owner的所有提交
 
-7.
+7. cherry-pick撤销
+  - git cherry-pick --abort
 
 8.
 
