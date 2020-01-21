@@ -45,9 +45,9 @@
 
 
      ```
-    - 查看本地跟踪分支对应的远程分支：git branch -vv（两个v），就能够看到本地分支跟踪的远程分支
+  - 查看本地跟踪分支对应的远程分支：git branch -vv（两个v），就能够看到本地分支跟踪的远程分支
 
-   - 其他相关命令
+  - 其他相关命令
 
      > 解除跟踪关系：git branch --unset-upstream localBranch
      >
@@ -57,7 +57,7 @@
      >
      > 删除远程分支：git push origin --delete remoteBranch 或者 git push origin :remoteBranch
 
-   - 实例 tiny-formatter：
+  - 实例 tiny-formatter：
 
      ```
      haibin.xu@tjand02:~/sprdroidq_trunk/vendor/sprd/proprietories-source/tiny-formatter$ git branch
@@ -86,6 +86,8 @@
      Already up-to-date.
 
      ```
+  - 为Android工程下所有项目建立跟踪分支：
+    repo start localbranch --all
 
 4.  git commit
 
