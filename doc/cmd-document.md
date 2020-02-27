@@ -393,3 +393,9 @@
     ctrl+q	显示注释文档
     alt+↑/↓	快速定位方法头部
     ```
+39. meld命令，文件比对，类似于beyondcompare
+
+40. img文件mount到本地
+    - 查看img文件格式： `file vendor.img`
+    - 如果是sprase格式，使用simg2img命令转换： 如 `simg2img vendor.img vendor.img.raw`
+    - mount到本地：`mkdir vendor; sudo mount -t ext4 -o rw vendor.img.raw vendor`

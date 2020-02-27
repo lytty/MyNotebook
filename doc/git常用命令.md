@@ -38,7 +38,6 @@
 
      　　　　2）git checkout -b localBranch origin/remoteBranch，这样新建的本地分支名（localBranch）可以自定义
 
-
      二、远程分支不存在，本地分支存在
 
      　　git push -u origin localBranch:remoteBranch
