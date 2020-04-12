@@ -1,6 +1,6 @@
 1. 服务器登录及文件传输
     - rdesktop -f 10.5.2.25 #远程登录天津本地服务器
-    - rdesktop -f shwts01 [shwts02] #远程登录上海外网
+    - rdesktop -f shwts19 [shwts02] #远程登录上海外网
     - 上海外网传文件至天津外网：
         1. 上海外网（Windows系统）点击“开始”—“运行”——输入“\\shasync\Data_Exchange_Tunnel\To_Tianjin\PLD_APPS\haibin.xu” 放入文件
         2. 天津外网（Ubuntu系统）smb://tjnas1/data_exchange_tunnel/From_Shanghai/PLD_APPS/haibin.xu  将数据拖到个人电脑桌面上使用
@@ -399,3 +399,13 @@
     - 查看img文件格式： `file vendor.img`
     - 如果是sprase格式，使用simg2img命令转换： 如 `simg2img vendor.img vendor.img.raw`
     - mount到本地：`mkdir vendor; sudo mount -t ext4 -o rw vendor.img.raw vendor`
+
+41. pandoc文档格式转换
+    - ` pandoc test.md -t dokuwiki -o test.txt`
+
+42. 图片尺寸格式修改命令
+    - `mogrify -resize 356x294 -format png Image4.jpeg`
+
+43. 如何去掉文件里的^M
+    - 用vim打开那些在win编辑过的文档的时候执行如下操作
+    - `:set ff=unix`，这样那个^M的问题也顺带解决了

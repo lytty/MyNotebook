@@ -1,4 +1,4 @@
-# Linux内核进程管理(二)——init_task进程
+# Linux内核进程管理——init_task进程
 
 ## 1. `init_task`进程
 
