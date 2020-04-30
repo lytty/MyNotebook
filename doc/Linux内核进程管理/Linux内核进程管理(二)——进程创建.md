@@ -1037,6 +1037,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
  *
  * __sched_fork() is basic setup used by init_idle() too:
  */
+/* __sched_fork函数会把新创建进程的调度实体se相关成员初始化为0，因为这些值不能复用父进程，子进程将来要加入调度器中参与调度，和父进程“分道扬镳”*/
 static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 {
 	p->on_rq			= 0;

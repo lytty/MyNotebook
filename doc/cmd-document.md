@@ -409,3 +409,33 @@
 43. 如何去掉文件里的^M
     - 用vim打开那些在win编辑过的文档的时候执行如下操作
     - `:set ff=unix`，这样那个^M的问题也顺带解决了
+
+44. find相关命令
+    - 查找当前目录下以manif开头（不区分大小写）的文件： `find ./ -iname manif* -type f`
+
+45. trace32指令
+    - `sYmbol.SourcePATH /home/haibin.xu/Documents/android-code/`
+    - `data.load.binary /home/haibin.xu/Documents/android-code/pac/q-android/s9863a1h10/2020-0420-s9863a1h10_presilicon_dev-native-bspout/obj/kernel/arch/arm64/boot/Image 0xffffff8008080000`
+    - `data.load.elf /home/haibin.xu/Documents/android-code/pac/q-android/s9863a1h10/2020-0420-s9863a1h10_presilicon_dev-native-bspout/obj/kernel/vmlinux /nocode /StripPart "/home/haibin.xu/"`
+    - `data.load.elf /home/haibin.xu/Documents/trace32/sysdump/vmlinux /nocode`
+    - `d.load.binary /home/haibin.xu/Documents/trace32/sysdump/systdump/sysdump.core.00 0x0000000000000000`
+    - `d.load.binary /home/haibin.xu/Documents/trace32/sysdump/systdump/sysdump.core.01_0x80000000-0x83ffffff_dump.lst 0xffffffc000000000`
+    - `d.load.binary /home/haibin.xu/Documents/trace32/sysdump/systdump/sysdump.core.02_0x84000000-0x842fffff_dump.lst 0xffffffc004000000`
+    - `d.load.binary /home/haibin.xu/Documents/trace32/sysdump/systdump/sysdump.core.03_0x84300000-0x8445afff_dump.lst 0xffffffc004300000`
+    - `d.load.binary /home/haibin.xu/Documents/trace32/sysdump/systdump/sysdump.core.04_0x8445b000-0x877fffff_dump.lst 0xffffffc00445b000`
+    - `d.load.binary /home/haibin.xu/Documents/trace32/sysdump/systdump/sysdump.core.05_0x87800000-0x87ffffff_dump.lst 0xffffffc007800000`
+    - `d.load.binary /home/haibin.xu/Documents/trace32/sysdump/systdump/sysdump.core.06_0x88000000-0x895fffff_dump.lst 0xffffffc008000000`
+    - `d.load.binary /home/haibin.xu/Documents/trace32/sysdump/systdump/sysdump.core.07_0x89600000-0x8ee4ffff_dump.lst 0xffffffc009600000`
+    - `d.load.binary /home/haibin.xu/Documents/trace32/sysdump/systdump/sysdump.core.08_0x8ee50000-0x93ffffff_dump.lst 0xffffffc00ee50000`
+    - `d.load.binary /home/haibin.xu/Documents/trace32/sysdump/systdump/sysdump.core.09_0x96000000-0xd5ffffff_dump.lst 0xffffffc016000000`
+    - `d.load.binary /home/haibin.xu/Documents/trace32/sysdump/systdump/sysdump.core.10_0xd6000000-0xfd57ffff_dump.lst 0xffffffc056000000` 
+    - `d.load.binary /home/haibin.xu/Documents/trace32/sysdump/systdump/sysdump.core.11_0x00800000-0x0083ffff_dump.lst 0xffffffbf80800000`
+    - `v.v %i %t %s linux_banner saved_command_line jiffies cd timekeeper.wall_to_monotonic.tv_sec +timekeeper.xtime_sec timekeeper.total_sleep_time cd.epoch_ns/1000000000`
+    - `data.load.binary /home/newdisk/home/software/TRACE32_R_2018_02_000096069.tar.xz-files/systdump/vmcore 0x80000000`
+    - `data.load.elf /home/haibin.xu/Documents/android-code/pac/q-android/s9863a1h10/2020-0420-s9863a1h10_presilicon_dev-native-bspout/obj/kernel/vmlinux /nocode`
+
+46. sysdump文件合并：
+    - `cat sysdump.core.* > systdump`
+    - sysdump 触发方式
+        - 命令方式（该方式为linux kernel默认自带功能）`echo 'c' > /proc/sysrq-trigger`
+        - 组合键方式，根据不同项目手机组合键的方式可能不同，一般为同时按下音量上下键，然后连续两次按下power键

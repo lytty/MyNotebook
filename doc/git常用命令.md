@@ -124,7 +124,8 @@
 7. cherry-pick撤销
   - git cherry-pick --abort
 
-8.
+8. git revert,可以撤销指定的提交，而不影响该提交后面的已提交的内容
+  - git revert -n 8b89621019c9adc6fc4d242cd41daeb13aeb9861
 
 9.
 
