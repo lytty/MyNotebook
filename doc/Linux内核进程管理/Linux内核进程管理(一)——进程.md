@@ -627,31 +627,29 @@
 		*/
 	};
 	
-	```
-	
-	进程描述符`task_struct`结构体定义很大，我们主要关注以下几个主要成员，如表1.2所示：
-	  
-	| 成员                                                         | 说明                                                         |
-	| :----------------------------------------------------------- | ------------------------------------------------------------ |
-	| `volatile long state;`                                       | 进程的状态                                                   |
-	| `void *stack;`                                               | 指向内核栈                                                   |
-	| `pid_t pid;`                                                 | 全局的进程号                                                 |
-	| `pid_t tgid;`                                                | 全局的线程组标识符                                           |
-	| `struct pid_link pids[PIDTYPE_MAX];`                         | 进程号，进程组标识符和会话标识符                             |
-	| `struct task_struct __rcu *real_parent; struct task_struct __rcu *parent;` | `real_parent` 指向真是的父进程，parent指向父进程：如果进程被另一个进程（通常是调度器）使用系统调用`ptrace`跟踪，那么父进程是跟踪进程，否则和`real_parent`相同 |
-	| `struct task_struct	*group_leader;`                       | 指向线程组的组长                                             |
-	| `const struct cred __rcu *real_cred; const struct cred __rcu *cred;` | `real_cred`指向主体和真实客体证书，`cred`指向有效客体证书。通常情况下，`real_cred`和`cred`指向相同的证书，但是`cred`可以被临时改变 |
-	| `char comm[TASK_COMM_LEN];`                                  | 进程名称                                                     |
-	| `int prio; int static_prio; int	normal_prio; unsigned int rt_priority; unsigned int policy;` | 调度策略和优先级                                             |
-	| `cpumask_t cpus_allowed;`                                    | 允许进程在哪些处理器上运行                                   |
-	| `struct mm_struct *mm; struct mm_struct	*active_mm;`      | 指向内存描述符，进程： `mm`和`active_mm`指向同一个内存描述符；内核线程：`mm`是空指针，当内核线程运行时，`active_mm`指向从进程借用的内存描述符 |
-	| `struct fs_struct *fs;`                                      | 文件系统信息，主要是进程的根目录和当前工作目录               |
-	| `struct files_struct *files;`                                | 打开文件表                                                   |
-	| `struct nsproxy	*nsproxy;`                                | 命名空间                                                     |
-	| `struct signal_struct *signal; struct sighand_struct *sighand; sigset_t	blocked; sigset_t real_blocked; sigset_t saved_sigmask; struct sigpending  pending;` | 信号处理（结构体`signal_struct`比较混乱，里面包含很多和信号无关的成员） |
-	| `struct sysv_sem sysvsem; struct sysv_shm sysvshm;`          | `UNIX`系统5信号量和共享内存                                  |
 
-  
+  进程描述符`task_struct`结构体定义很大，我们主要关注以下几个主要成员，如表1.2所示：
+
+| 成员                                                         | 说明                                                         |
+| :----------------------------------------------------------- | ------------------------------------------------------------ |
+| `volatile long state;`                                       | 进程的状态                                                   |
+| `void *stack;`                                               | 指向内核栈                                                   |
+| `pid_t pid;`                                                 | 全局的进程号                                                 |
+| `pid_t tgid;`                                                | 全局的线程组标识符                                           |
+| `struct pid_link pids[PIDTYPE_MAX];`                         | 进程号，进程组标识符和会话标识符                             |
+| `struct task_struct __rcu *real_parent; struct task_struct __rcu *parent;` | `real_parent` 指向真是的父进程，parent指向父进程：如果进程被另一个进程（通常是调度器）使用系统调用`ptrace`跟踪，那么父进程是跟踪进程，否则和`real_parent`相同 |
+| `struct task_struct	*group_leader;`                       | 指向线程组的组长                                             |
+| `const struct cred __rcu *real_cred; const struct cred __rcu *cred;` | `real_cred`指向主体和真实客体证书，`cred`指向有效客体证书。通常情况下，`real_cred`和`cred`指向相同的证书，但是`cred`可以被临时改变 |
+| `char comm[TASK_COMM_LEN];`                                  | 进程名称                                                     |
+| `int prio; int static_prio; int	normal_prio; unsigned int rt_priority; unsigned int policy;` | 调度策略和优先级                                             |
+| `cpumask_t cpus_allowed;`                                    | 允许进程在哪些处理器上运行                                   |
+| `struct mm_struct *mm; struct mm_struct	*active_mm;`      | 指向内存描述符，进程： `mm`和`active_mm`指向同一个内存描述符；内核线程：`mm`是空指针，当内核线程运行时，`active_mm`指向从进程借用的内存描述符 |
+| `struct fs_struct *fs;`                                      | 文件系统信息，主要是进程的根目录和当前工作目录               |
+| `struct files_struct *files;`                                | 打开文件表                                                   |
+| `struct nsproxy	*nsproxy;`                                | 命名空间                                                     |
+| `struct signal_struct *signal; struct sighand_struct *sighand; sigset_t	blocked; sigset_t real_blocked; sigset_t saved_sigmask; struct sigpending  pending;` | 信号处理（结构体`signal_struct`比较混乱，里面包含很多和信号无关的成员） |
+| `struct sysv_sem sysvsem; struct sysv_shm sysvshm;`          | `UNIX`系统5信号量和共享内存                                  |
+
 
 
 
