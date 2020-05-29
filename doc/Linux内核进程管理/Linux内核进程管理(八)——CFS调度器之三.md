@@ -6,14 +6,14 @@
 
 >   调度时机，即什么时候，会驱动调度器进入此函数，调度时机可以分为如下3种：
 
--   阻塞操作： 互斥量(mutex)、信号量(semaphore)、等待队列(waitqueue)等。
+-   阻塞操作： 互斥量(`mutex`)、信号量(`semaphore`)、等待队列(`waitqueue`)等。
 
 -   在中断返回前和系统调用返回用户空间时，去检查`TIF_NEED_RESCHED`标志位以判断是否需要调度。
 
--   将要被唤醒的进程(Wakeups)不会马上调用`schedule()`，而是会被添加到CFS就绪队列中，并且设置`TIF_NEED_RESCHED`标志位。那么唤醒进程什么时候被调度呢？这要根据内核是否具有可抢占功能(CONFIG_PREEMPT=y)分两种情况。
+-   将要被唤醒的进程(`Wakeups`)不会马上调用`schedule()`，而是会被添加到`CFS`就绪队列中，并且设置`TIF_NEED_RESCHED`标志位。那么唤醒进程什么时候被调度呢？这要根据内核是否具有可抢占功能(`CONFIG_PREEMPT=y`)分两种情况。
 
 *   1) 如果内核可抢占，则：如果唤醒动作发生在系统调用或者异常处理上下文中，在下一次调用`preempt_enable()`时会检查是否需要抢占调度；如果唤醒动作发生在硬中断处理上下文中，硬件中断处理返回前夕会检查是否抢占当前进程。
-*   2）如果内核不可抢占，则：当前进程调用cond_resched()时会检查是否要调度；主动调度调用schedule()；系统调用或者异常处理返回到用户空间；中断处理完成返回用户空间。
+*   2）如果内核不可抢占，则：当前进程调用`cond_resched()`时会检查是否要调度；主动调度调用`schedule()`；系统调用或者异常处理返回到用户空间；中断处理完成返回用户空间。
 
 >   以上就是明确调度的时机，上面提到的硬件中断返回前夕和硬件中断返回用户空间前夕是两个不同的概念。前者是每次硬件中断返回前夕都会检查是否有进程需要被抢占调度，不管中断发生点是在内核空间还是用户空间；后者是只有中断发生点在用户空间才会检查。
 >
@@ -346,8 +346,8 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 	 * higher scheduling class, because otherwise those loose the
 	 * opportunity to pull in more work from other CPUs.
 	 */
-    /*当前调度类为fair类或者idle类,并且运行队列的nr_running数量=cfs队列h_nr_running数量
-      即当前运行队列里面只有normal类型的进程,没有RT类的进程*/ 
+    /*当前调度类为fair类或者idle类,并且该CPU运行队列的nr_running数量=cfs队列h_nr_running数量
+      即当前CPU运行队列里面只有normal类型的进程,没有RT类的进程，否则就需要遍历整个调度类。*/ 
 	if (likely((prev->sched_class == &idle_sched_class ||
 		    prev->sched_class == &fair_sched_class) &&
 		   rq->nr_running == rq->cfs.h_nr_running)) {
@@ -365,7 +365,10 @@ pick_next_task(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 	}
 
 again:
-    /*按照class优先级的高低依次遍历各个class并执行对应的pick next task函数,直到失败为止*/
+    /*按照class优先级的高低依次遍历各个class并执行对应的pick next task函数,直到失败为止。调度类的
+      优先级为stop_sched_class > dl_sched_class > rt_sched_class > fair_sched_class > 
+      idle_sched_class。stop_sched_class用于关闭CPU，dl_sched_class和rt_sched_class是实
+      时性进程，所以当系统有实时性进程时，它们总是优先执行。*/
 	for_each_class(class) {
 		p = class->pick_next_task(rq, prev, rf);
 		if (p) {
@@ -527,7 +530,7 @@ idle:
 6.   `put_prev_entity`
 7.   `set_next_entity`
 8.   `parent_entity`
-9.   `task_fits_max`
+9.   `update_misfit_status`
 10.   `put_prev_task`
 11.   `idle_balance`
 
@@ -918,22 +921,285 @@ static inline struct cfs_rq *group_cfs_rq(struct sched_entity *grp)
 
 #### 2.3.5 函数`is_same_group`解析
 
+>   `__schedule() -> pick_next_task_fair() -> is_same_group()`，`is_same_group()`函数比较两个调度实体是否在同一个`cfs_rq`上,即同一个运行队列中，定义如下，`kernel4.14/kernel/sched/fair.c`
+
+```c
+/* Do the two (enqueued) entities belong to the same group ? */
+static inline struct cfs_rq *
+is_same_group(struct sched_entity *se, struct sched_entity *pse)
+{
+	if (se->cfs_rq == pse->cfs_rq)
+		return se->cfs_rq;
+
+	return NULL;
+}
+
+```
+
+#### 2.3.6 函数`put_prev_entity`解析
+
+>   `__schedule() -> pick_next_task_fair() -> put_prev_entity()`，定义如下，`kernel4.14/kernel/sched/fair.c`
+
+```c
+static void put_prev_entity(struct cfs_rq *cfs_rq, struct sched_entity *prev)
+{
+	/*
+	 * If still on the runqueue then deactivate_task()
+	 * was not called and update_curr() has to be done:
+	 */
+    /*如果prev调度实体还在运行队列里面,直接update此调度实体的vruntime和此cfs_rq的
+    min_vruntime*/
+	if (prev->on_rq)
+		update_curr(cfs_rq);
+
+	/* throttle cfs_rqs exceeding runtime */
+	check_cfs_rq_runtime(cfs_rq);
+
+	check_spread(cfs_rq, prev);
+
+	if (prev->on_rq) {
+		update_stats_wait_start(cfs_rq, prev);
+		/* Put 'current' back into the tree. */
+        /*将prev根据vruntime数值插入到rb tree中*/ 
+		__enqueue_entity(cfs_rq, prev);
+		/* in !on_rq case, update occurred at dequeue */
+        /*根据PELT算法,更新调度实体和队列本身的负载*/
+		update_load_avg(prev, 0);
+	}
+	cfs_rq->curr = NULL;
+}
+
+```
+
+#### 2.3.7 函数`set_next_entity`解析
+
+>   `__schedule() -> pick_next_task_fair() -> set_next_entity()`，定义如下，`kernel4.14/kernel/sched/fair.c`
+
+```c
+static void
+set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
+{
+	/* 'current' is not kept within the tree. */
+	if (se->on_rq) {
+		/*
+		 * Any task has to be enqueued before it get to execute on
+		 * a CPU. So account for the time it spent waiting on the
+		 * runqueue.
+		 */
+		update_stats_wait_end(cfs_rq, se);
+        /*将调度实体se从rb tree中删除,即选择此调度实体开始运行*/  
+		__dequeue_entity(cfs_rq, se);
+        /*更新进程组的load*/ 
+		update_load_avg(se, UPDATE_TG);
+	}
+
+	update_stats_curr_start(cfs_rq, se);
+    /*设置当前运行的调度实体为se*/ 
+	cfs_rq->curr = se;
+
+	/*
+	 * Track our maximum slice length, if the CPU's load is at
+	 * least twice that of our own weight (i.e. dont track it
+	 * when there are only lesser-weight tasks around):
+	 */
+	if (schedstat_enabled() && rq_of(cfs_rq)->load.weight >= 2*se->load.weight) {
+		schedstat_set(se->statistics.slice_max,
+			max((u64)schedstat_val(se->statistics.slice_max),
+			    se->sum_exec_runtime - se->prev_sum_exec_runtime));
+	}
+
+	se->prev_sum_exec_runtime = se->sum_exec_runtime;
+}
+
+```
+
+#### 2.3.8 函数`parent_entity`解析
+
+>   `__schedule() -> pick_next_task_fair() -> parent_entity()`，`parent_entity()`函数返回调度实体`se`的父节点，定义如下，`kernel4.14/kernel/sched/fair.c`
+
+```c
+static inline struct sched_entity *parent_entity(struct sched_entity *se)
+{
+	return se->parent;
+}
+
+```
+
+#### 2.3.9 函数`update_misfit_status`解析
+
+>   `__schedule() -> pick_next_task_fair() -> update_misfit_status()`，`update_misfit_status()`函数更新`rq`的成员`misfit_task_load`，定义如下，`kernel4.14/kernel/sched/fair.c`
+
+```c
+static inline void update_misfit_status(struct task_struct *p, struct rq *rq)
+{
+	if (!static_branch_unlikely(&sched_asym_cpucapacity))
+		return;
+
+	if (!p) {
+		rq->misfit_task_load = 0;
+		return;
+	}
+
+	if (task_fits_capacity(p, cpu_of(rq))) {
+		rq->misfit_task_load = 0;
+		return;
+	}
+
+	rq->misfit_task_load = task_h_load(p);
+}
+
+```
+
+#### 2.3.10 函数`put_prev_task`解析
+
+>   `__schedule() -> pick_next_task_fair() -> put_prev_task()`，`put_prev_task()`函数目的是取消进程prev的调度，定义如下，`put_prev_task`[`kernel4.14/kernel/sched/sched.h`], `put_prev_task_fair`[`kernel4.14/kernel/sched/fair.c`]
+
+```c
+static inline void put_prev_task(struct rq *rq, struct task_struct *prev)
+{
+	prev->sched_class->put_prev_task(rq, prev);
+}
+
+/*
+ * Account for a descheduled task:
+ */
+static void put_prev_task_fair(struct rq *rq, struct task_struct *prev)
+{
+	struct sched_entity *se = &prev->se;
+	struct cfs_rq *cfs_rq;
+
+	for_each_sched_entity(se) {
+		cfs_rq = cfs_rq_of(se);
+		put_prev_entity(cfs_rq, se);
+	}
+}
+
+```
+
+#### 2.3.11 函数`idle_balance`解析
+
+>   `__schedule() -> pick_next_task_fair() -> idle_balance()`，`idle_balance()`函数涉及到负载均衡，后续章节我们会单独讨论，定义如下，`kernel4.14/kernel/sched/fair.c`
+
+```c
+/*
+ * In CONFIG_NO_HZ_COMMON case, the idle balance kickee will do the
+ * rebalancing for all the cpus for whom scheduler ticks are stopped.
+ */
+static void nohz_idle_balance(struct rq *this_rq, enum cpu_idle_type idle)
+{
+	int this_cpu = this_rq->cpu;
+	struct rq *rq;
+	struct sched_domain *sd;
+	int balance_cpu;
+	/* Earliest time when we have to do rebalance again */
+	unsigned long next_balance = jiffies + 60*HZ;
+	int update_next_balance = 0;
+#ifdef CONFIG_SPRD_CORE_CTL
+	cpumask_t cpus;
+#endif
+
+	if (idle != CPU_IDLE ||
+	    !test_bit(NOHZ_BALANCE_KICK, nohz_flags(this_cpu)))
+		goto end;
+
+	/*
+	 * This cpu is going to update the blocked load of idle CPUs either
+	 * before doing a rebalancing or just to keep metrics up to date. we
+	 * can safely update the next update timestamp
+	 */
+	rcu_read_lock();
+	sd = rcu_dereference(this_rq->sd);
+	/*
+	 * Check whether there is a sched_domain available for this cpu.
+	 * The last other cpu can have been unplugged since the ILB has been
+	 * triggered and the sched_domain can now be null. The idle balance
+	 * sequence will quickly be aborted as there is no more idle CPUs
+	 */
+	if (sd)
+		nohz.next_update = jiffies + msecs_to_jiffies(LOAD_AVG_PERIOD);
+	rcu_read_unlock();
+
+#ifdef CONFIG_SPRD_CORE_CTL
+	cpumask_andnot(&cpus, nohz.idle_cpus_mask, cpu_isolated_mask);
+	for_each_cpu(balance_cpu, &cpus) {
+#else
+	for_each_cpu(balance_cpu, nohz.idle_cpus_mask) {
+#endif
+		if (balance_cpu == this_cpu || !idle_cpu(balance_cpu))
+			continue;
+
+		/*
+		 * If this cpu gets work to do, stop the load balancing
+		 * work being done for other cpus. Next load
+		 * balancing owner will pick it up.
+		 */
+		if (need_resched())
+			break;
+
+		rq = cpu_rq(balance_cpu);
+
+		/*
+		 * If time for next balance is due,
+		 * do the balance.
+		 */
+		if (time_after_eq(jiffies, rq->next_balance)) {
+			struct rq_flags rf;
+
+			rq_lock_irq(rq, &rf);
+			update_rq_clock(rq);
+			cpu_load_update_idle(rq);
+			rq_unlock_irq(rq, &rf);
+
+			update_blocked_averages(balance_cpu);
+			/*
+			 * This idle load balance softirq may have been
+			 * triggered only to update the blocked load and shares
+			 * of idle CPUs (which we have just done for
+			 * balance_cpu). In that case skip the actual balance.
+			 */
+			if (!test_bit(NOHZ_STATS_KICK, nohz_flags(this_cpu)))
+				rebalance_domains(rq, idle);
+		}
+
+		if (time_after(next_balance, rq->next_balance)) {
+			next_balance = rq->next_balance;
+			update_next_balance = 1;
+		}
+	}
+
+	/*
+	 * next_balance will be updated only when there is a need.
+	 * When the CPU is attached to null domain for ex, it will not be
+	 * updated.
+	 */
+	if (likely(update_next_balance))
+		nohz.next_balance = next_balance;
+end:
+	clear_bit(NOHZ_BALANCE_KICK, nohz_flags(this_cpu));
+}
+
+```
 
 
-### 2.4
 
+### 2.4 `prev`与`next`进程上下文切换
 
+要解析的代码如下：
 
 ```c
 static void __sched notrace __schedule(bool preempt)
 {
 	......
+    /*如果prev进程与pick的next进程不是同一个进程*/
     if (likely(prev != next)) {
 #ifdef CONFIG_SCHED_WALT
 		if (!prev->on_rq)
+            /*设置prev进程退出rq的时间戳*/  
 			prev->last_sleep_ts = wallclock;
 #endif
+        /*rq里面进程被切换的次数*/
 		rq->nr_switches++;
+        /*设置rq的当前进程为选择的next进程*/
 		rq->curr = next;
 		/*
 		 * The membarrier system call requires each architecture
@@ -950,19 +1216,587 @@ static void __sched notrace __schedule(bool preempt)
 		 * smp_mb__after_unlock_lock() before
 		 * finish_lock_switch().
 		 */
+        /*增加进程上下文切换的次数*/
 		++*switch_count;
 
 		trace_sched_switch(preempt, prev, next);
 
 		/* Also unlocks the rq: */
+        /*prev和next进程上下文切换*/
 		rq = context_switch(rq, prev, next, &rf);
 	} else {
+        /*prev与next是同一个进程,则不需要做上下文切换,直接unlock即可*/  
 		rq->clock_update_flags &= ~(RQCF_ACT_SKIP|RQCF_REQ_SKIP);
 		rq_unlock_irq(rq, &rf);
 	}
+	......
+}
 
+```
+
+>   `__schedule() -> context_switch()`,源码如下,`kernel4.14/kernel/sched/core.c`:
+
+```c
+/*
+ * context_switch - switch to the new MM and the new thread's register state.
+ */
+static __always_inline struct rq *
+context_switch(struct rq *rq, struct task_struct *prev,
+	       struct task_struct *next, struct rq_flags *rf)
+{
+	struct mm_struct *mm, *oldmm;
+
+	prepare_task_switch(rq, prev, next);
+	/*获取next进程的地址空间描述符*/
+	mm = next->mm;
+    /*获取prev进程正在使用的地址空间描述符*/
+	oldmm = prev->active_mm;
+	/*
+	 * For paravirt, this is coupled with an exit in switch_to to
+	 * combine the page table reload and the switch backend into
+	 * one hypercall.
+	 */
+	arch_start_context_switch(prev);
+	/*如果next进程的地址空间描述符为空,则表示next是内核线程,那么next进程的地址空间描述符
+     使用prev进程的描述符.由于是kernespace,所以使用lazy tlb,不需要flush tlb操作.这里
+    next进程借用了prev进程的地址空间描述符,所以不需要switch_mm操作.*/
+	if (!mm) {
+		next->active_mm = oldmm;
+		mmgrab(oldmm);
+		enter_lazy_tlb(oldmm, next);
+	} else/*这里next有自己的地址空间描述符,那么就必须使用switch_mm与prev进程切换
+    地址空间描述符了.*/ 
+		switch_mm_irqs_off(oldmm, mm, next);
+	/*prev是内核线程,则将prev进程的使用的地址空间描述符置为空,并且保存当前rq上次使用的
+    地址描述符为prev进程的.由于prev是内核线程,在切换之后其地址空间没有用处了(即不会被借用
+    了)*/
+	if (!prev->mm) {
+		prev->active_mm = NULL;
+		rq->prev_mm = oldmm;
+	}
+
+	rq->clock_update_flags &= ~(RQCF_ACT_SKIP|RQCF_REQ_SKIP);
+
+	/*
+	 * Since the runqueue lock will be released by the next
+	 * task (which is an invalid locking op but in the case
+	 * of the scheduler it's an obvious special-case), so we
+	 * do an early lockdep release here:
+	 */
+	rq_unpin_lock(rq, rf);
+	spin_release(&rq->lock.dep_map, 1, _THIS_IP_);
+
+	/* Here we just switch the register state and the stack. */
+	switch_to(prev, next, prev);
+	barrier();
+
+	return finish_task_switch(prev);
+}
+
+```
+
+>   分析上面的函数之前,我们需要了解下进程结构体(`struct task_struct`)中两个成员变量:
+
+```c
+struct task_struct {
+...
+struct mm_struct		*mm;
+struct mm_struct		*active_mm;
+...
+};
+
+```
+
+>   解释如下:
+>
+>   mm指向进程所拥有的内存描述符，而active_mm指向进程运行时所使用的内存描述符。对于普通进程而言，这两个指针变量的值相同。但是，内核线程不拥有任何内存描述符，所以它们的mm成员总是为NULL。当内核线程得以运行时，它的active_mm成员被初始化为前一个运行进程的 active_mm值。
+>
+>   这样就好解释进程上下文切换的逻辑了.分别分析如下:
+
+#### 2.4.1 `prepare_task_switch`分析
+
+>   `__schedule() -> context_switch() -> prepare_task_switch()`,源码如下,`kernel4.14/kernel/sched/core.c`:
+
+```c
+/**
+ * prepare_task_switch - prepare to switch tasks
+ * @rq: the runqueue preparing to switch
+ * @prev: the current task that is being switched out
+ * @next: the task we are going to switch to.
+ *
+ * This is called with the rq lock held and interrupts off. It must
+ * be paired with a subsequent finish_task_switch after the context
+ * switch.
+ *
+ * prepare_task_switch sets up locking and calls architecture specific
+ * hooks.
+ */
+static inline void
+prepare_task_switch(struct rq *rq, struct task_struct *prev,
+		    struct task_struct *next)
+{
+	kcov_prepare_switch(prev);
+    /*调度信息切换,即将prev进行清除其调度信息,next进程添加其调度信息,主要
+     是确定next进程还需要等待多久才能被正在的调度到*/
+	sched_info_switch(rq, prev, next);
+    /*perf event切换*/ 
+	perf_event_task_sched_out(prev, next);
+    /*触发抢占调度notification*/  
+	fire_sched_out_preempt_notifiers(prev, next);
+    /*设定next在rq所在的cpu上*/  
+	prepare_lock_switch(rq, next);
+    /*arm架构此函数为空*/
+	prepare_arch_switch(next);
+}
+
+```
+
+#### 2.4.2 `enter_lazy_tlb`分析
+
+>   如果mm为NULL,则表示切换的进程是内核线程，在arm架构中,`enter_lazy_tlb`函数没有实现.
+
+#### 2.4.3 `switch_mm_irqs_off`分析
+
+>   对于`ARM64`这个`cpu arch`，每一个`cpu core`都有两个寄存器来指示当前运行在该`CPU  core`上的进程（线程）实体的地址空间。这两个寄存器分别是`ttbr0_el1`（用户地址空间）和`ttbr1_el1`（内核地址空间）。由于所有的进程共享内核地址空间，因此所谓地址空间切换也就是切换`ttbr0_el1`而已。地址空间听起来很抽象，实际上就是内存中的若干`Translation table`而已，每一个进程都有自己独立的一组用于翻译用户空间虚拟地址的`Translation  table`，这些信息保存在内存描述符中，具体位于`struct  mm_struct`中的`pgd`成员中。以`pgd`为起点，可以遍历该内存描述符的所有用户地址空间的`Translation table`。源码如下:
+
+>   `kernel4.14/include/linux/mmu_context.h`
+
+```c
+#ifndef switch_mm_irqs_off
+# define switch_mm_irqs_off switch_mm
+#endif
+
+```
+
+>   `kernel4.14/arch/arm64/include/asm/mmu_context.h`
+
+```c
+static inline void
+switch_mm(struct mm_struct *prev, struct mm_struct *next,
+	  struct task_struct *tsk)
+{
+	if (prev != next)
+		__switch_mm(next);
+
+	/*
+	 * Update the saved TTBR0_EL1 of the scheduled-in task as the previous
+	 * value may have not been initialised yet (activate_mm caller) or the
+	 * ASID has changed since the last run (following the context switch
+	 * of another thread of the same process).
+	 */
+	update_saved_ttbr0(tsk, next);
+}
+
+static inline void __switch_mm(struct mm_struct *prev_mm, struct mm_struct *next_mm,
+			       struct task_struct *tsk)
+{
+#ifdef CONFIG_MPU
+	unsigned int cpu = smp_processor_id();
+#endif
+	if (prev_mm == next_mm)
+		return;
+#ifdef CONFIG_MPU
+	if (prev_mm->context.page_rwx_mask == current_rwx_mask[cpu]) {
+		flush_switched_cplbs(cpu);
+		set_mask_dcplbs(next_mm->context.page_rwx_mask, cpu);
+	}
+#endif
+
+#ifdef CONFIG_APP_STACK_L1
+	/* L1 stack switching.  */
+	if (!next_mm->context.l1_stack_save)
+		return;
+	if (next_mm->context.l1_stack_save == current_l1_stack_save)
+		return;
+	if (current_l1_stack_save) {
+		memcpy(current_l1_stack_save, l1_stack_base, l1_stack_len);
+	}
+	current_l1_stack_save = next_mm->context.l1_stack_save;
+	memcpy(l1_stack_base, current_l1_stack_save, l1_stack_len);
+#endif
+}
+
+```
+
+>   `kernel4.14/mm/init-mm.c`
+
+```c
+struct mm_struct init_mm = {
+	.mm_rb		= RB_ROOT,
+	.pgd		= swapper_pg_dir,
+	.mm_users	= ATOMIC_INIT(2),
+	.mm_count	= ATOMIC_INIT(1),
+	.mmap_sem	= __RWSEM_INITIALIZER(init_mm.mmap_sem),
+	.page_table_lock =  __SPIN_LOCK_UNLOCKED(init_mm.page_table_lock),
+	.mmlist		= LIST_HEAD_INIT(init_mm.mmlist),
+	.user_ns	= &init_user_ns,
+	INIT_MM_CONTEXT(init_mm)
+};
+
+```
+
+>   具体的解释如下:
+>
+>   1）`prev_mm`是要切出的地址空间，`next_mm`是要切入的地址空间，`tsk`是将要切入的进程。
+>   2）要切出的地址空间和要切入的地址空间是一个地址空间的话，那么切换地址空间也就没有什么意义了。
+>   3）在`ARM64`中，地址空间的切换主要是切换`ttbr0_el1`，对于`swapper`进程的地址空间，其用户空间没有任何的mapping，而如果要切入的地址空间就是swapper进程的地址空间的时候，将（设定`ttbr0_el1`指向empty_zero_page）。
+>   4）check_and_switch_context中有很多`TLB、ASID`相关的操作，我们将会在另外的文档中给出细致描述，这里就简单略过，实际上，最终该函数会调用`arch/arm64/mm/proc.S`文件中的`cpu_do_switch_mm`将要切入进程的`L0 Translation table`物理地址（保存在内存描述符的`pgd`成员）写入`ttbr0_el1`。
+
+#### 2.4.4 `switch_to`分析
+
+>   `switch_to`定义如下, `kernel4.14/arch/parisc/include/asm/switch_to.h`：
+
+```c
+#define switch_to(prev, next, last) do {			\
+	(last) = _switch_to(prev, next);			\
+} while(0)
+
+```
+
+>   一个switch_to将代码分成两段：
+
+    AAA  
+    
+    switch_to(prev, next, prev);  
+    
+    BBB  
+    
+
+>   一次进程切换，涉及到了三个进程，`prev`和`next`是大家都熟悉的参数了，对于进程A（下图中的右半图片），如果它想要切换到B进程，那么：
+>
+>   prev＝A
+>   next＝B
+
+![image-20200521172340055](../picture/图 进程切换.png)
+
+>   这时候，在A进程中调用`switch_to`完成A到B进程的切换。但是，当经历万水千山，A进程又被重新调度的时候，我们又来到了`switch_to`返回的这一点（上图中的左半图片），这时候，我们是从哪一个进程切换到A呢？谁知道呢（在A进程调用`switch_to`的时候是不知道的）？在A进程调用`switch_to`之后，`cpu`就执行B进程了，后续B进程切到哪个进程呢？随后又经历了怎样的进程切换过程呢？当然，这一切对于A进程来说它并不关心，它唯一关心的是当切换回A进程的时候，该`cpu`上（也不一定是A调用`switch_to`切换到B进程的那个`CPU`）执行的上一个`task`是谁？这就是第三个参数的含义（实际上这个参数的名字就是`last`，也基本说明了其含义）。也就是说，在`AAA`点上，`prev`是A进程，对应的`run queue`是`CPUa`的`run queue`，而在`BBB`点上，A进程恢复执行，last是X进程，对应的`run queue`是`CPUx`的`run  queue`。
+>
+>   由于存在`MMU`，内存中可以有多个`task`，并且由调度器依次调度到`cpu core`上实际执行。系统有多少个`cpu  core`就可以有多少个进程（线程）同时执行。即便是对于一个特定的`cpu  core`，调度器可以可以不断的将控制权从一个`task`切换到另外一个`task`上。实际的`context  switch`的动作也不复杂：就是将当前的上下文保存在内存中，然后从内存中恢复另外一个`task`的上下文。对于`ARM64`而言，`context`包括：
+>
+>   1）通用寄存器
+>   2）浮点寄存器
+>   3）地址空间寄存器（`ttbr0_el1`和`ttbr1_el1`），上一节已经描述
+>   4）其他寄存器（`ASID、thread process ID register`等）
+
+>   `__switch_to`代码（位于`kernel4.14/arch/tile/kernel/process.c`）如下：
+
+```c
+/*
+ * Thread switching.
+ */
+__notrace_funcgraph struct task_struct *__switch_to(struct task_struct *prev,
+				struct task_struct *next)
+{
+	struct task_struct *last;
+
+	fpsimd_thread_switch(next); /*（1）*/
+	tls_thread_switch(next); /*（2）*/
+    /*跟硬件跟踪相关*/
+	hw_breakpoint_thread_switch(next);
+	contextidr_thread_switch(next);
+	entry_task_switch(next);
+	uao_thread_switch(next);
+	sprd_update_cpu_usage(prev, next);
+	ssbs_thread_switch(next);
+	scs_overflow_check(next);
+
+	/*
+	 * Complete any pending TLB or cache maintenance on this CPU in case
+	 * the thread migrates to a different CPU.
+	 * This full barrier is also required by the membarrier system
+	 * call.
+	 */
+	dsb(ish);
+
+	/* the actual thread switch */
+	last = cpu_switch_to(prev, next); /*（3）*/
+
+	return last;
+}
+
+```
+
+>   1）`fp`是`float-point`的意思，和浮点运算相关。`simd`是`Single Instruction Multiple Data`的意思，和多媒体以及信号处理相关。`fpsimd_thread_switch`其实就是把当前`FPSIMD`的状态保存到了内存中（`task.thread.fpsimd_state`），从要切入的`next`进程描述符中获取`FPSIMD`状态，并加载到CPU上。
+>   2）概念同上，不过是处理`tls（thread local storage）`的切换。这里硬件寄存器涉及`tpidr_el0`和`tpidrro_el0`，涉及的内存是`task.thread.tp_value`。具体的应用场景是和线程库相关，具体大家可以自行学习了。
+>   3）具体的切换发生在`arch/arm64/kernel/entry.S`文件中的`cpu_switch_to`，代码如下：
+
+```
+/*
+ * Register switch for AArch64. The callee-saved registers need to be saved
+ * and restored. On entry:
+ *   x0 = previous task_struct (must be preserved across the switch)
+ *   x1 = next task_struct
+ * Previous and next are guaranteed not to be the same.
+ *
+ */
+ENTRY(cpu_switch_to) /* 1 */
+	mov	x10, #THREAD_CPU_CONTEXT /* 2 */
+	add	x8, x0, x10 /* 3 */
+	mov	x9, sp
+	stp	x19, x20, [x8], #16		// store callee-saved registers  /* 4 */
+	stp	x21, x22, [x8], #16
+	stp	x23, x24, [x8], #16
+	stp	x25, x26, [x8], #16
+	stp	x27, x28, [x8], #16
+	stp	x29, x9, [x8], #16
+	str	lr, [x8]   /* A */
+	add	x8, x1, x10  /* 5 */
+	ldp	x19, x20, [x8], #16		// restore callee-saved registers /* 6 */
+	ldp	x21, x22, [x8], #16 
+	ldp	x23, x24, [x8], #16
+	ldp	x25, x26, [x8], #16
+	ldp	x27, x28, [x8], #16
+	ldp	x29, x9, [x8], #16
+	ldr	lr, [x8] /* B */
+	mov	sp, x9  /* C */
+	msr	sp_el0, x1
+#ifdef CONFIG_SHADOW_CALL_STACK
+	str	x18, [x0, #TSK_TI_SCS]
+	ldr	x18, [x1, #TSK_TI_SCS]
+	str	xzr, [x1, #TSK_TI_SCS]		// limit visibility of saved SCS
+#endif
+	ret  /* 7 */
+ENDPROC(cpu_switch_to)
+
+```
+
+>   1）进入`cpu_switch_to`函数之前，`x0，x1`用做参数传递，`x0`是`prev task`，就是那个要挂起的`task，x1`是`next task`，就是马上要切入的`task`。`cpu_switch_to`和其他的普通函数没有什么不同，尽管会走遍万水千山，但是最终还是会返回调用者函数`__switch_to`。
+>   在进入细节之前，先想一想这个问题：`cpu_switch_to`要如何保存现场？要保存那些通用寄存器呢？其实上一小段描述已经做了铺陈：尽管有点怪异，本质上`cpu_switch_to`仍然是一个普通函数，需要符合`ARM64`标准过程调用文档。在该文档中规定，`x19～x28`是属于`callee-saved registers`，也就是说，在`__switch_to`函数调用`cpu_switch_to`函数这个过程中，`cpu_switch_to`函数要保证`x19～x28`这些寄存器值是和调用`cpu_switch_to`函数之前一模一样的。除此之外，`pc、sp、fp`当然也是必须是属于现场的一部分的。
+>
+>   2）得到`THREAD_CPU_CONTEXT`的偏移，保存在`x10`中。
+>
+>   3）`x0`是`pre task`的进程描述符，加上偏移之后就获取了访问`cpu context`内存的指针（`x8`寄存器）。所有`context`的切换的原理都是一样的，就是把当前`cpu`寄存器保存在内存中，这里的内存是在进程描述符中的 `thread.cpu_context`中。
+>
+>   4）一旦定位到保存`cpu context`（各种通用寄存器）的内存，那么使用`stp`保存硬件现场。这里`x29`就是`fp（frame pointer）`，`x9`保存了`stack pointer`，`lr`是返回的`PC`值。到A代码处，完成了`pre task cpu context`的保存动作。
+>
+>   5）和步骤 3）类似，只不过是针对`next task`而言的。这时候`x8`指向了`next task`的`cpu context`。
+>
+>   6）和步骤 4）类似，不同的是这里的操作是恢复`next task`的`cpu context`。执行到代码B处，所有的寄存器都已经恢复，除了`PC`和`SP`，其中`PC`保存在了`lr（x30）`中，而`sp`保存在了`x9`中。在代码C出恢复了`sp`值，这时候万事俱备，只等`PC`操作了。
+>
+>   7）`ret`指令其实就是把`x30（lr）`寄存器的值加载到`PC`，至此现场完全恢复到调用`cpu_switch_to`那一点上了。
+
+#### 2.4.5 `finish_task_switch`分析
+
+>   涉及到mm的处理,我们整体理清楚这部分代码:
+>
+>   我们上面已经说过：如果切入内核线程，那么其实进程地址空间实际上并没有切换，该内核线程只是借用了切出进程使用的那个地址空间（`active_mm`）。对于内核中的实体，我们都会使用引用计数来根据一个数据对象，从而确保在没有任何引用的情况下释放该数据对象实体，对于内存描述符亦然。因此，在`context_switch`中有代码如下：
+
+```c
+if (!mm) {
+	next->active_mm = oldmm;
+	mmgrab(oldmm); /* 内部调用atomic_inc，增加引用计数 */
+	enter_lazy_tlb(oldmm, next);
+}
+
+```
+
+>   既然是借用别人的内存描述符（地址空间），那么调用`atomic_inc`是合理的，反正马上就切入B进程了，在A进程中提前增加引用计数也OK的。话说有借有还，那么在内核线程被切出的时候，就是归还内存描述符的时候了。
+>
+>   这里还有一个悖论，对于内核线程而言，在运行的时候，它会借用其他进程的地址空间，因此，在整个内核线程运行过程中，需要使用该地址空间（内存描述符），因此对内存描述符的增加和减少引用计数的操作只能在在内核线程之外完成。假如一次切换是这样的：…A—>B（内核线程）—>C…，增加引用计数比较简单，上面已经说了，在A进程调用`context_switch`的时候完成。现在问题来了，如何在C中完成减少引用计数的操作呢？我们还是从代码中寻找答案，如下（`context_switch`函数中，去掉了不相关的代码）：
+
+```c
+if (!prev->mm) {
+	prev->active_mm = NULL;
+	rq->prev_mm = oldmm; /* 在rq->prev_mm上保存了上一次使用的mm struct */
+}
+
+```
+
+>   借助其他进程内存描述符的东风，内核线程B欢快的运行，然而，快乐总是短暂的，也许是B自愿的，也许是强迫的，调度器最终会剥夺B的执行，切入C进程。也就是说，B内核线程调用`switch_to`（执行了AAA段代码），自己挂起，C粉墨登场，执行BBB段的代码。具体的代码在`finish_task_switch`，如下，`kernel4.14/kernel/sched/core.c`：
+
+```c
+/**
+ * finish_task_switch - clean up after a task-switch
+ * @prev: the thread we just switched away from.
+ *
+ * finish_task_switch must be called after the context switch, paired
+ * with a prepare_task_switch call before the context switch.
+ * finish_task_switch will reconcile locking set up by prepare_task_switch,
+ * and do any other architecture-specific cleanup actions.
+ *
+ * Note that we may have delayed dropping an mm in context_switch(). If
+ * so, we finish that here outside of the runqueue lock. (Doing it
+ * with the lock held can cause deadlocks; see schedule() for
+ * details.)
+ *
+ * The context switch have flipped the stack from under us and restored the
+ * local variables which were saved when this task called schedule() in the
+ * past. prev == current is still correct but we need to recalculate this_rq
+ * because prev may have moved to another CPU.
+ */
+static struct rq *finish_task_switch(struct task_struct *prev)
+	__releases(rq->lock)
+{
+	struct rq *rq = this_rq();
+	struct mm_struct *mm = rq->prev_mm; /* 1) */
+	long prev_state;
+
+	/*
+	 * The previous task will have left us with a preempt_count of 2
+	 * because it left us after:
+	 *
+	 *	schedule()
+	 *	  preempt_disable();			// 1
+	 *	  __schedule()
+	 *	    raw_spin_lock_irq(&rq->lock)	// 2
+	 *
+	 * Also, see FORK_PREEMPT_COUNT.
+	 */
+	if (WARN_ONCE(preempt_count() != 2*PREEMPT_DISABLE_OFFSET,
+		      "corrupted preempt_count: %s/%d/0x%x\n",
+		      current->comm, current->pid, preempt_count()))
+		preempt_count_set(FORK_PREEMPT_COUNT);
+
+	rq->prev_mm = NULL;
+
+	/*
+	 * A task struct has one reference for the use as "current".
+	 * If a task dies, then it sets TASK_DEAD in tsk->state and calls
+	 * schedule one last time. The schedule call will never return, and
+	 * the scheduled task must drop that reference.
+	 *
+	 * We must observe prev->state before clearing prev->on_cpu (in
+	 * finish_lock_switch), otherwise a concurrent wakeup can get prev
+	 * running on another CPU and we could rave with its RUNNING -> DEAD
+	 * transition, resulting in a double drop.
+	 */
+	prev_state = prev->state;
+	vtime_task_switch(prev);
+	perf_event_task_sched_in(prev, current);
+	/*
+	 * The membarrier system call requires a full memory barrier
+	 * after storing to rq->curr, before going back to user-space.
+	 *
+	 * TODO: This smp_mb__after_unlock_lock can go away if PPC end
+	 * up adding a full barrier to switch_mm(), or we should figure
+	 * out if a smp_mb__after_unlock_lock is really the proper API
+	 * to use.
+	 */
+	smp_mb__after_unlock_lock();
+	finish_lock_switch(rq, prev);
+	finish_arch_post_lock_switch();
+	kcov_finish_switch(current);
+
+	fire_sched_in_preempt_notifiers(current);
+	if (mm)
+		mmdrop(mm); /* 2) */
+	if (unlikely(prev_state == TASK_DEAD)) {
+		if (prev->sched_class->task_dead)
+			prev->sched_class->task_dead(prev);
+
+		/*
+		 * Remove function-return probe instances associated with this
+		 * task and put them back on the free list.
+		 */
+		kprobe_flush_task(prev);
+
+		/* Task is done with its stack. */
+		put_task_stack(prev);
+
+		put_task_struct(prev);
+	}
+
+	tick_nohz_task_switch();
+	return rq;
+}
+
+
+```
+
+>   1）我们假设B是内核线程，在进程A调用`context_switch`切换到B线程的时候，借用的地址空间被保存在CPU对应的`run queue`中。在B切换到C之后，通过`rq->prev_mm`就可以得到借用的内存描述符。
+>   2）已经完成B到C的切换后，借用的地址空间可以返还了。因此在C进程中调用`mmdrop`来完成这一动作。很神奇，在A进程中为内核线程B借用地址空间，但却在C进程中释放它。
+>
+>   进程切换这部分参考如下:http://www.wowotech.net/process_management/context-switch-arch.html
+
+### 2.5 `balance_callback`调用
+
+```c
+static void __sched notrace __schedule(bool preempt)
+{
+	......
 	balance_callback(rq);
 }
 
 ```
 
+>   `__schedule() -> balance_callback()`, `kernel4.14/kernel/sched/core.c`
+
+```c
+/* rq->lock is NOT held, but preemption is disabled */
+static void __balance_callback(struct rq *rq)
+{
+	struct callback_head *head, *next;
+	void (*func)(struct rq *rq);
+	unsigned long flags;
+
+	raw_spin_lock_irqsave(&rq->lock, flags);
+	head = rq->balance_callback;
+	rq->balance_callback = NULL;
+	while (head) {
+		func = (void (*)(struct rq *))head->func;
+		next = head->next;
+		head->next = NULL;
+		head = next;
+
+		func(rq);
+	}
+	raw_spin_unlock_irqrestore(&rq->lock, flags);
+}
+
+static inline void balance_callback(struct rq *rq)
+{
+	if (unlikely(rq->balance_callback))
+		__balance_callback(rq);
+}
+
+
+```
+
+>   `kernel4.14/kernel/sched/sched.h`
+
+```c
+//对于fail sched class并没有定义此函数,但是rt sched class定义了,如下:
+static inline void
+queue_balance_callback(struct rq *rq,
+		       struct callback_head *head,
+		       void (*func)(struct rq *rq))
+{
+	lockdep_assert_held(&rq->lock);
+
+	if (unlikely(head->next))
+		return;
+
+	head->func = (void (*)(struct callback_head *))func;
+	head->next = rq->balance_callback;
+	rq->balance_callback = head;
+}
+
+```
+
+`kernel4.14/kernel/sched/deadline.c`
+
+```c
+static inline void queue_push_tasks(struct rq *rq)
+{
+	if (!has_pushable_dl_tasks(rq))
+		return;
+
+	queue_balance_callback(rq, &per_cpu(dl_push_head, rq->cpu), push_dl_tasks);
+}
+
+static inline void queue_pull_task(struct rq *rq)
+{
+	queue_balance_callback(rq, &per_cpu(dl_pull_head, rq->cpu), pull_dl_task);
+}
+
+```
+
+>   以上细节不在深入解析,留到讲解`rt sched class`章节详细分析.
+>   上面有两个遗留问题:
+>
+>   1) `fair sched class`的负载均衡
+>
+>   2) rt 调度算法思想和负载均衡
+>
+>   进程上下文切换(context_switch)参考如下:
+>   http://www.wowotech.net/process_management/context-switch-arch.html
