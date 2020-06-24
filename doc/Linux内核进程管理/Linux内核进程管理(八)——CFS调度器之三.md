@@ -25,11 +25,11 @@
 
 -   我们将从以下几个部分来拆解解析函数`__schedule()`：
 
-*   1) 调度之前的初始化工作；
-*   2) 根据preempt flag/当前进程的状态；
-*   3) 挑选next进程来取代当前运行的进程;
-*   4）prev与next进程上下文切换;
-*   5) balance_callback调用。
+1.   调度之前的初始化工作；
+2.   根据preempt flag/当前进程的状态；
+3.   挑选next进程来取代当前运行的进程;
+4.   prev与next进程上下文切换;
+5.   balance_callback调用。
 
 -   `__schedule()`函数定义如下，`kernel4.14/kernel/sched/core.c`
 
@@ -1460,7 +1460,7 @@ struct mm_struct init_mm = {
     switch_to(prev, next, prev);  
     
     BBB  
-    
+
 
 >   一次进程切换，涉及到了三个进程，`prev`和`next`是大家都熟悉的参数了，对于进程A（下图中的右半图片），如果它想要切换到B进程，那么：
 >
@@ -1791,12 +1791,12 @@ static inline void queue_pull_task(struct rq *rq)
 
 ```
 
->   以上细节不在深入解析,留到讲解`rt sched class`章节详细分析.
->   上面有两个遗留问题:
->
->   1) `fair sched class`的负载均衡
->
->   2) rt 调度算法思想和负载均衡
->
->   进程上下文切换(context_switch)参考如下:
->   http://www.wowotech.net/process_management/context-switch-arch.html
+以上细节不在深入解析,留到讲解`rt sched class`章节详细分析.
+上面有两个遗留问题:
+
+1) `fair sched class`的负载均衡
+
+2) rt 调度算法思想和负载均衡
+
+进程上下文切换(context_switch)参考如下:
+http://www.wowotech.net/process_management/context-switch-arch.html

@@ -1,4 +1,5 @@
 # antutu v7 jni编译
+
 ## jni 路径
     ```
     |-- antutu
@@ -10,7 +11,7 @@
     |   |-- gen
     |   `-- jni_r1
     `-- v8
-
+    
     jni_r1
     |-- Android.mk
     |-- Application.mk
@@ -37,7 +38,7 @@
     |-- utils
     |-- view3d
     `-- zlib
-
+    
     ```
 ---
 
@@ -48,6 +49,7 @@
     https://developer.android.google.cn/ndk/downloads/older_releases.html#ndk-13b-downloads
     ```
 2. Platform
+    
     - jni 默认使用Mac OS X Platform版本，darwin-x86_64编译链进行编译，因为Ubuntu上直接使用android-ndk-r13b-darwin-x86_64来编译的话，会因为代码格式问题编译出错，所以我们使用选用android-ndk-r13b-linux-x86_64版本；
 3. 编译环境
     - 解压android-ndk-r13b-linux-x86_64.zip至预定目录, 如解压至目录/home/***/Android/android-ndk-r13b；

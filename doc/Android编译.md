@@ -1,4 +1,5 @@
 # Android编译
+
 ## 1. 全局变量
 ```
 PLATFORM_VERSION_CODENAME=REL

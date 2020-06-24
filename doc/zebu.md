@@ -1,4 +1,5 @@
 # ZEBU 分之代码
+
 1. base manifest： http://10.0.1.99:8080/jenkins/job/sprdroid8.1_trunk_sharkl3_daily_build/24/artifact/manifest.xml
 
 # ZEBU dump寄存器命令
@@ -127,9 +128,9 @@
 # zebu相关命令
     ```
     cd cache; ls -l; chmod 777 -R ./; mkdir /sdcard/.antutu/; cp setting.xml /sdcard/.antutu/; pm install -f -g antutu-benchmark-V6_3_3.apk; pm install -f -g antutupingce3D_6010101.apk
-
+    
     pm install -f -g antutu-benchmark-v7.1.0-1-20180916_zebu-release.apk; pm install -f -g antutu-benchmark-v7.1.0-1-20180916_zebu-release.apk;
-
+    
     am start -S -W -n com.antutu.ABenchMark/com.antutu.ABenchMark.ABenchMarkStart -e 74Sd42l35nH e57b6eb9906e27062fc7fcfcc820b957a5c33b649
     ```
 - 设置printk等级
