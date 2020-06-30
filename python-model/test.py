@@ -47,3 +47,4 @@ print_red_on_cyan('Hello, World!')
 print_red_on_cyan('Hello, Universe!')
 
 cprint("Attention!", 'red', attrs=['bold'])
+logger.info("haibin")
