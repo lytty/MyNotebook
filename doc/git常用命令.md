@@ -41,9 +41,8 @@
      二、远程分支不存在，本地分支存在
 
      　　git push -u origin localBranch:remoteBranch
-
-
      ```
+
   - 查看本地跟踪分支对应的远程分支：git branch -vv（两个v），就能够看到本地分支跟踪的远程分支
 
   - 其他相关命令

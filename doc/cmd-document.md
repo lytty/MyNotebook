@@ -278,6 +278,10 @@ mogrify -resize 356x294 -format png Image4.jpeg
 1.   命令方式（该方式为linux kernel默认自带功能）`echo 'c' > /proc/sysrq-trigger`
 2.   组合键方式，根据不同项目手机组合键的方式可能不同，一般为同时按下音量上下键，然后连续两次按下power键
 
+> 目录下所有文件内关键字替换
+
+`grep -inr "a"  -rl ./* | xargs -i sed -i  "s/a/b/g" {}`
+
 ## 6. Android相关操作
 
 >   Android 代码下载
@@ -677,7 +681,7 @@ git revert -n 8b89621019c9adc6fc4d242cd41daeb13aeb9861
 
 ```
 
-
+> 查看clone地址 `git remote -v`
 
 ## 9. 解压缩命令
 
@@ -781,7 +785,7 @@ unzip file.zip //解压zip
 >   windows10 启动opengrok 
 
 1.   java -Xmx524m -jar C:\opengrok\lib\opengrok.jar -W "C:\opengrok\data\configuration.xml" -c C:\ctags\ctags.exe -P -S -v -s "C:\opengrok\source" -d "C:\opengrok\data"
-2.   java -Xmx524m -jar "G:\\opengrok-1.2.8\\lib\\opengrok.jar" -W "G:\\opengrok-1.2.8\\data\\configuration.xml" -c "C:\\Program Files\\opengrok\\ctags\\ctags.exe" -P -S -v -s "G:\\opengrok-1.2.8\\source" -d "G:\\opengrok-1.2.8\\data"
+2.   java -Xmx524m -jar "D:\\Opengrok\\opengrok\\lib\\opengrok.jar" -W "D:\\Opengrok\\opengrok\\data\\configuration.xml" -c "C:\\ProgramData\\chocolatey\\lib\\universal-ctags\\tools\\ctags.exe" -P -S -v -s "D:\\Opengrok\\opengrok\\source" -d "D:\\Opengrok\\opengrok\\data"
 3.   启动tomcat bin中的startup.bat
 
 >   ubuntu 启动opengrok
@@ -821,3 +825,13 @@ alt+shift+c	查看最近修改过的文件（快速定位最近修改的文件�
 ctrl+q	显示注释文档
 alt+↑/↓	快速定位方法头部
 ```
+
+## 12 Excel快捷操作
+
+1.  Excel如何多个单元格同时输入一样的文字
+   - 打开Excel
+   - 选中需要输入的单元格
+   - 输入文字
+   - 键盘同时按下【Ctrl】+【Enter】 
+   - 完成输入! END
+2. 
