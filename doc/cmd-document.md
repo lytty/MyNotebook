@@ -683,6 +683,16 @@ git revert -n 8b89621019c9adc6fc4d242cd41daeb13aeb9861
 
 > 查看clone地址 `git remote -v`
 
+> 更新.gitignore
+
+```
+git rm -r --cached .
+git add .gitignore
+git commit -m “update .gitignore”
+```
+
+
+
 ## 9. 解压缩命令
 
 >   tar
