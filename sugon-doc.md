@@ -26,9 +26,11 @@
 
 11.   Xftp5， 本地向内网云桌面传送文件，内网服务器：10.2.29.6， 用户名：upload， 密码：upload
 
-12.   云桌面：Xshell： ssh://xuhb@sugonyf.com@10.20.96.30:22, 密码：Sugon!1234
+12.   云桌面：Xshell： ssh://xuhb@sugonyf.com@10.20.96.30:22, 密码：Sugon!1234,  root    Perseus;123
 
-13.   本地服务器登陆，打开Xshell，ssh 10.2.19.21, 登录名：root，密码：parastor;123
+13.  云桌面：share_ps3test(\\10.20.96.30)创建网络驱动器，密码 111111
+
+14. 本地服务器登陆，打开Xshell，ssh 10.2.16.114, 登录名：root，密码：parastor;123
 
 ## 分支代码下载流程
 
